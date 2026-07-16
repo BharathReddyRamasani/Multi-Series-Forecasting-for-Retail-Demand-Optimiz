@@ -11,6 +11,7 @@ class ExplainRequest(BaseModel):
     store: int
     item: int
     forecast_date: str
+    model_type: Optional[str] = "lightgbm"
 
 @router.post("/", response_model=ExplainResponse)
 def explain_prediction(
@@ -23,7 +24,8 @@ def explain_prediction(
         explanation = forecaster.explain(
             store=req.store,
             item=req.item,
-            forecast_date=req.forecast_date
+            forecast_date=req.forecast_date,
+            model_type=req.model_type
         )
         return ExplainResponse(**explanation)
     except Exception as e:

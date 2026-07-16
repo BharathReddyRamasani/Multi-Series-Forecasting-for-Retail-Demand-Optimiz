@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "D:\forecast\backend\routers\forecast.py", line 23, in generate_forecast
+    predictions = forecaster.forecast(
+                  ^^^^^^^^^^^^^^^^^^^^
+  File "D:\forecast\backend\services\forecaster.py", line 325, in forecast
+    preds_point, preds_low, preds_high = self._forecast_xgboost(history, X_future_df, horizon)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\forecast\backend\services\forecaster.py", line 227, in _forecast_xgboost
+    point = np.clip(self.model_xgb.predict(X_future), 0, None)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\rbr_llm\venv\Lib\site-packages\xgboost\core.py", line 751, in inner_f
+    return func(**kwargs)
+           ^^^^^^^^^^^^^^
+  File "D:\rbr_llm\venv\Lib\site-packages\xgboost\sklearn.py", line 1446, in predict
+    predts = self.get_booster().inplace_predict(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\rbr_llm\venv\Lib\site-packages\xgboost\core.py", line 751, in inner_f
+    return func(**kwargs)
+           ^^^^^^^^^^^^^^
+  File "D:\rbr_llm\venv\Lib\site-packages\xgboost\core.py", line 2854, in inplace_predict
+    self._validate_features(fns)
+  File "D:\rbr_llm\venv\Lib\site-packages\xgboost\core.py", line 3429, in _validate_features
+    raise ValueError(msg.format(self.feature_names, feature_names))
+ValueError: feature_names mismatch: ['store', 'item', 'year', 'month', 'day', 'dayofweek', 'weekofyear', 'quarter', 'is_weekend', 'dayofyear', 'lag_1', 'lag_7', 'lag_14', 'lag_28', 'lag_30', 'lag_90', 'rolling_std_7', 'rolling_std_14', 'rolling_std_30', 'rolling_std_90', 'rolling_median_7', 'rolling_median_14', 'rolling_median_30', 'ema_095', 'ema_09', 'ema_08', 'ema_07', 'expanding_mean'] ['rolling_median_14', 'rolling_median_7', 'lag_7', 'rolling_median_30', 'is_weekend', 'lag_14', 'ema_07', 'dayofweek', 'lag_28', 'expanding_mean', 'ema_08', 'month', 'weekofyear', 'day', 'dayofyear', 'rolling_std_90', 'rolling_std_7', 'store', 'rolling_std_14', 'lag_30', 'ema_09', 'lag_90', 'rolling_std_30', 'year', 'lag_1', 'ema_095', 'item', 'quarter']

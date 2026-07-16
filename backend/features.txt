@@ -1,0 +1,4 @@
+LGBM:
+store,item,year,month,day,dayofweek,weekofyear,quarter,is_weekend,dayofyear,lag_1,lag_7,lag_14,lag_28,lag_30,lag_90,rolling_std_7,rolling_std_14,rolling_std_30,rolling_std_90,rolling_mean_7,rolling_mean_14,rolling_mean_30,rolling_mean_90,ema_095,ema_09,ema_08,ema_07,expanding_mean
+XGB:
+store,item,year,month,day,dayofweek,weekofyear,quarter,is_weekend,dayofyear,lag_1,lag_7,lag_14,lag_28,lag_30,lag_90,rolling_std_7,rolling_std_14,rolling_std_30,rolling_std_90,rolling_median_7,rolling_median_14,rolling_median_30,ema_095,ema_09,ema_08,ema_07,expanding_mean

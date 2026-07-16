@@ -14,6 +14,7 @@ export interface ForecastRequest {
   horizon: number
   model_type?: string
   start_date?: string
+  scenario_overrides?: Record<string, any>
 }
 
 export interface ForecastPoint {
@@ -23,14 +24,29 @@ export interface ForecastPoint {
   upper_95: number
 }
 
+export interface HistoricalPoint {
+  date: string
+  sales: number
+}
+
 export interface ForecastResponse {
   store: number
   item: number
   horizon: number
   start_date: string
   forecasts: ForecastPoint[]
+  history: HistoricalPoint[]
   model_version: string
   model_name: string
+  expected_sales: number
+  peak_day: string
+  safety_stock: number
+  inventory_recommendation: number
+  demand_trend: string
+  confidence: string
+  spike_expected: boolean
+  spike_reason: string
+  prediction_risk: string
 }
 
 export interface Metrics {
@@ -90,6 +106,22 @@ export interface StoreItemInfo {
 
 // ── Business & Inventory ──
 
+export interface DataQuality {
+  missing_values_pct: number
+  duplicate_rows: number
+  outliers: number
+  data_drift: boolean
+  freshness: string
+}
+
+export interface FeatureDrift {
+  feature: string
+  training_value: number
+  current_value: number
+  drift_pct: number
+  has_drifted: boolean
+}
+
 export interface TopItem {
   item_id: number
   name: string
@@ -139,8 +171,37 @@ export interface ExplainRequest {
   store: number
   item: number
   forecast_date: string
+  model_type?: string
 }
 
+
+export interface MonthlySales {
+  month: string
+  sales: number
+}
+
+export interface WeeklyPattern {
+  day_of_week: string
+  avg_sales: number
+}
+
+export interface SalesResponse {
+  monthly: MonthlySales[]
+  weekly: WeeklyPattern[]
+}
+
+export interface InsightsResponse {
+  store_id: number
+  insights: string[]
+  recommendation: string
+}
+
+export interface AccuracyHistoryResponse {
+  store: number
+  item?: number
+  history: { month: string; rmse: number }[]
+  trend: string
+}
 
 // ── API Calls ─────────────────────────────────────────────────────────────
 
@@ -150,6 +211,9 @@ export const apiClient = {
 
   forecast: (req: ForecastRequest) =>
     api.post<ForecastResponse>('/forecast', req).then(r => r.data),
+    
+  simulate: (req: ForecastRequest) =>
+    api.post<ForecastResponse>('/simulate', req).then(r => r.data),
 
   metrics: () =>
     api.get<Metrics>('/metrics').then(r => r.data),
@@ -171,6 +235,31 @@ export const apiClient = {
     return { stores, items, combinations: stores.length * items.length } as StoreItemInfo
   },
 
+  storeSales: (storeId: number) =>
+    api.get<SalesResponse>(`/data/sales/store/${storeId}`).then(r => r.data),
+
+  itemSales: (itemId: number) =>
+    api.get<SalesResponse>(`/data/sales/item/${itemId}`).then(r => r.data),
+    
+  getDatasetInfo: () =>
+    api.get('/data/dataset-info').then(r => r.data),
+    
+  getQuality: () =>
+    api.get<DataQuality>('/data/quality').then(r => r.data),
+    
+  getDrift: () =>
+    api.get<FeatureDrift[]>('/data/drift').then(r => r.data),
+    
+  getRawData: (page: number, size: number, store?: number, item?: number) => {
+    let url = `/data/raw?page=${page}&size=${size}`
+    if (store) url += `&store=${store}`
+    if (item) url += `&item=${item}`
+    return api.get(url).then(r => r.data)
+  },
+
+  getModelPerformance: () =>
+    api.get('/model-performance').then(r => r.data),
+
   uploadCSV: (file: File) => {
     const form = new FormData()
     form.append('file', file)
@@ -184,8 +273,15 @@ export const apiClient = {
 
   getStoreInventory: (store: number, horizon: number = 30) =>
     api.get<InventoryResponse>(`/business/inventory?store=${store}&horizon=${horizon}`).then(r => r.data),
-
-
+    
+  getStoreInsights: (store: number) =>
+    api.get<InsightsResponse>(`/business/insights?store=${store}`).then(r => r.data),
+    
+  getAccuracyHistory: (store: number, item?: number) => {
+    let url = `/history/accuracy-history?store=${store}`
+    if (item) url += `&item=${item}`
+    return api.get<AccuracyHistoryResponse>(url).then(r => r.data)
+  },
 
   uploadData: (file: File) => {
     const form = new FormData()
@@ -196,7 +292,7 @@ export const apiClient = {
   },
 
   explain: (req: ExplainRequest) =>
-    api.post<ExplainResponse>('/explain', req).then(r => r.data),
+    api.post<ExplainResponse>('/explain/', req).then(r => r.data),
 }
 
 export default api

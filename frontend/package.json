@@ -21,7 +21,8 @@
     "framer-motion": "^11.2.12",
     "react-hot-toast": "^2.4.1",
     "clsx": "^2.1.1",
-    "@tanstack/react-query": "^5.45.0"
+    "@tanstack/react-query": "^5.45.0",
+    "@clerk/clerk-react": "^5.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

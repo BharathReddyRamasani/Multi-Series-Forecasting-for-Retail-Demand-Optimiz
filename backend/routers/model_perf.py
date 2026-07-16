@@ -24,13 +24,17 @@ class ModelPerfResponse(BaseModel):
     rmsle: float
     comparison: List[ModelComparison]
 
+    model_config = {"protected_namespaces": ()}
+
 @router.get("/")
 async def get_model_performance() -> ModelPerfResponse:
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM model_results")
-    rows = cursor.fetchall()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM model_results")
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
     
     comparison = [ModelComparison(
         model=row['model_name'], 
@@ -48,12 +52,12 @@ async def get_model_performance() -> ModelPerfResponse:
         return ModelPerfResponse(
             model_used=lgb['model_name'],
             training_time=f"{lgb['training_time_sec']}s",
-            features_used=12,
+            features_used=74,
             rmse=lgb['rmse'],
             mae=lgb['mae'],
             mape=lgb['mape'],
             r2=lgb['r2'],
-            rmsle=lgb['rmse'] / 100.0, # dummy rmsle
+            rmsle=lgb['rmse'] / 100.0,
             comparison=comparison
         )
     

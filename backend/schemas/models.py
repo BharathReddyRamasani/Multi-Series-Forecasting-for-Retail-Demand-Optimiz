@@ -1,7 +1,8 @@
 """
 Pydantic schemas for request/response validation.
 """
-from pydantic import BaseModel, Field
+import re
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import date
 
@@ -15,6 +16,18 @@ class ForecastRequest(BaseModel):
         None,
         description="Forecast start date (YYYY-MM-DD). Defaults to today.",
     )
+    scenario_overrides: Optional[dict] = Field(
+        None,
+        description="Overrides for What-If Analysis (e.g., {'price_multiplier': 1.1, 'force_holiday': True})"
+    )
+
+    @field_validator("start_date")
+    @classmethod
+    def validate_start_date(cls, v):
+        if v is not None:
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+                raise ValueError("start_date must be in YYYY-MM-DD format")
+        return v
 
     model_config = {"json_schema_extra": {"example": {"store": 1, "item": 1, "horizon": 30}}}
 
@@ -46,6 +59,9 @@ class ForecastResponse(BaseModel):
     inventory_recommendation: float = 0
     demand_trend: str = "Stable"
     confidence: str = "90%"
+    spike_expected: bool = False
+    spike_reason: str = ""
+    prediction_risk: str = "Low"
 
     model_config = {"protected_namespaces": ()}
 

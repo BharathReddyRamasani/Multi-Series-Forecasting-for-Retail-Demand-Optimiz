@@ -11,16 +11,24 @@ import ForecastPage from './pages/Forecast'
 import Analytics from './pages/Analytics'
 import ModelPerformance from './pages/ModelPerformance'
 import DatasetExplorer from './pages/DatasetExplorer'
+import DigitalTwin from './pages/DigitalTwin'
 import ForecastHistory from './pages/ForecastHistory'
-import Reports from './pages/Reports'
+import DecisionIntelligence from './pages/DecisionIntelligence'
+
+import Stores from './pages/Stores'
+import Items from './pages/Items'
+import Inventory from './pages/Inventory'
+import Settings from './pages/Settings'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoaded } = useAuth()
+  if (!isLoaded) return <div className="loading-center"><div className="spinner-lg" /></div>
   return isAuthenticated ? children : <Navigate to="/landing" replace />
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoaded } = useAuth()
+  if (!isLoaded) return <div className="loading-center"><div className="spinner-lg" /></div>
   return !isAuthenticated ? children : <Navigate to="/" replace />
 }
 
@@ -46,8 +54,8 @@ function AnimatedRoutes() {
       <Routes location={location} key={location.pathname}>
         {/* Public Routes */}
         <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
-        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        <Route path="/login/*" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register/*" element={<PublicRoute><Register /></PublicRoute>} />
 
         {/* Protected Routes */}
         <Route path="/" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Dashboard /></PageWrapper></div></ProtectedRoute>} />
@@ -56,7 +64,11 @@ function AnimatedRoutes() {
         <Route path="/model-performance" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ModelPerformance /></PageWrapper></div></ProtectedRoute>} />
         <Route path="/dataset" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><DatasetExplorer /></PageWrapper></div></ProtectedRoute>} />
         <Route path="/history" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ForecastHistory /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/reports" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Reports /></PageWrapper></div></ProtectedRoute>} />
+        <Route path="/decision-intelligence" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><DecisionIntelligence /></PageWrapper></div></ProtectedRoute>} />
+        <Route path="/stores" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Stores /></PageWrapper></div></ProtectedRoute>} />
+        <Route path="/items" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Items /></PageWrapper></div></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Inventory /></PageWrapper></div></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Settings /></PageWrapper></div></ProtectedRoute>} />
         
         <Route path="*" element={<Navigate to="/landing" replace />} />
       </Routes>

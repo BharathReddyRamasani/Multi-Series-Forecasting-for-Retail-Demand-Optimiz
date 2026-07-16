@@ -1,7 +1,6 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import axios from 'axios'
-import { Cpu, Activity, Zap, Layers, Server, Target, GitBranch, ArrowDownRight, ArrowUpRight } from 'lucide-react'
+import { apiClient } from '../api/client'
+import { Cpu, Activity, Zap, Layers, Server, Target, GitBranch, ArrowRight } from 'lucide-react'
 import { Bar, Scatter } from 'react-chartjs-2'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, PointElement, Title, Tooltip, Legend
@@ -12,10 +11,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, Title, To
 export default function ModelPerformance() {
   const { data, isLoading } = useQuery({
     queryKey: ['modelPerformance'],
-    queryFn: async () => {
-      const { data } = await axios.get('http://localhost:8000/api/model-performance')
-      return data
-    }
+    queryFn: apiClient.getModelPerformance
   })
 
   if (isLoading) return <div className="loading-center"><div className="spinner-lg" /></div>
@@ -53,7 +49,6 @@ export default function ModelPerformance() {
   }
 
   // --- SHAP Dependence (Scatter) ---
-  // Simulate high lag_7 -> higher prediction
   const scatterPoints = Array.from({ length: 100 }, () => {
     const lag = Math.random() * 100
     return {
@@ -72,22 +67,6 @@ export default function ModelPerformance() {
         borderWidth: 1,
         pointRadius: 4,
         pointHoverRadius: 6
-      }
-    ]
-  }
-
-  // --- Waterfall Plot (Global / Average) ---
-  const waterfallData = {
-    labels: ['Base', 'lag_7', 'rolling_mean_30', 'day_of_week', 'month', 'Prediction'],
-    datasets: [
-      { 
-        data: [0, 45, 57, 50, 48, 0], 
-        backgroundColor: 'transparent' // Hidden bars
-      },
-      { 
-        data: [45, 12, -7, -2, 6, 54], 
-        backgroundColor: ['var(--tx-3)', '#00d97e', '#ff4d6d', '#ff4d6d', '#00d97e', '#4f83ff'],
-        borderRadius: 4
       }
     ]
   }
@@ -126,20 +105,26 @@ export default function ModelPerformance() {
     }
   }
 
-  const waterfallOptions = {
-    ...commonOptions,
-    scales: {
-      x: { stacked: true, grid: { display: false }, ticks: { color: '#9898b0' } },
-      y: { stacked: true, grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: '#9898b0' } }
-    }
+  // Create Bar chart data for the model comparison
+  const comparisonLabels = data?.comparison?.map((c: any) => c.model) || []
+  const rmseData = data?.comparison?.map((c: any) => c.rmse) || []
+  
+  const modelCompChartData = {
+    labels: comparisonLabels,
+    datasets: [{
+      label: 'RMSE (Lower is better)',
+      data: rmseData,
+      backgroundColor: comparisonLabels.map((l: string) => l === 'LightGBM' ? '#00d97e' : 'rgba(255,255,255,0.1)'),
+      borderRadius: 4
+    }]
   }
 
   return (
     <>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Model Performance & XAI</h1>
-          <p className="page-subtitle">Evaluate the ML algorithm and explain its global behavior using SHAP values.</p>
+          <h1 className="page-title">Model Performance & Comparison</h1>
+          <p className="page-subtitle">Evaluate the ML algorithm, compare candidates, and explain global behavior.</p>
         </div>
       </div>
 
@@ -169,12 +154,62 @@ export default function ModelPerformance() {
           </div>
         </div>
 
+        {/* Model Comparison Matrix */}
+        <div className="grid-2 mb-4">
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title"><Server size={18} /> Model Comparison Matrix</span>
+            </div>
+            <div className="table-wrap" style={{ flex: 1 }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>RMSE</th>
+                    <th>MAE</th>
+                    <th>MAPE</th>
+                    <th>Inference (1k)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data?.comparison?.sort((a: any, b: any) => a.rmse - b.rmse).map((c: any, index: number) => (
+                    <tr key={c.model} style={c.model === 'LightGBM' ? { background: 'rgba(0, 217, 126, 0.05)' } : {}}>
+                      <td style={{ fontWeight: c.model === 'LightGBM' ? 700 : 500, color: c.model === 'LightGBM' ? 'var(--green)' : 'var(--tx-1)' }}>
+                          {index === 0 && <span style={{ marginRight: 8, fontSize: 16 }}>🥇</span>}
+                          {index === 1 && <span style={{ marginRight: 8, fontSize: 16 }}>🥈</span>}
+                          {index === 2 && <span style={{ marginRight: 8, fontSize: 16 }}>🥉</span>}
+                          {c.model}
+                          {c.model === 'LightGBM' && <span style={{ marginLeft: 8, fontSize: 10, padding: '2px 6px', background: 'var(--green)', color: '#000', borderRadius: 4 }}>PRODUCTION</span>}
+                      </td>
+                      <td className="mono">{c.rmse.toFixed(2)}</td>
+                      <td className="mono">{c.mae.toFixed(2)}</td>
+                      <td className="mono">{c.mape.toFixed(2)}%</td>
+                      <td className="mono">{c.prediction_time}ms</td>
+                    </tr>
+                  ))}
+                  {!data?.comparison && <tr><td colSpan={5} style={{textAlign: 'center', padding: 20}}>Loading comparison...</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">RMSE Leaderboard</span>
+              <span style={{fontSize: 11, color: 'var(--tx-3)'}}>Lower is better</span>
+            </div>
+            <div className="chart-wrap">
+              <Bar data={modelCompChartData} options={hBarOptions as any} />
+            </div>
+          </div>
+        </div>
+
         {/* Top XAI Row */}
         <div className="grid-2 mb-4">
           <div className="card">
             <div className="card-header">
-              <span className="card-title"><Target size={16} /> Feature Importance</span>
-              <span style={{fontSize: 11, color: 'var(--tx-3)'}}>Tree Split Metric</span>
+              <span className="card-title"><Target size={16} /> Global Feature Importance</span>
+              <span style={{fontSize: 11, color: 'var(--tx-3)'}}>LightGBM Split Metric</span>
             </div>
             <div className="chart-wrap">
               <Bar data={featureImportanceData} options={hBarOptions as any} />
@@ -189,56 +224,6 @@ export default function ModelPerformance() {
             <div className="chart-wrap">
               <Bar data={shapSummaryData} options={stackedHBarOptions as any} />
             </div>
-          </div>
-        </div>
-
-        {/* Bottom XAI Row */}
-        <div className="grid-2 mb-4">
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">SHAP Dependence Plot (lag_7)</span>
-            </div>
-            <div className="chart-wrap">
-              <Scatter data={dependenceData} options={commonOptions as any} />
-            </div>
-          </div>
-          
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">Global Waterfall Explanation</span>
-            </div>
-            <div className="chart-wrap">
-              <Bar data={waterfallData} options={waterfallOptions as any} />
-            </div>
-          </div>
-        </div>
-        
-        {/* Telemetry */}
-        <div className="card">
-          <div className="card-header"><span className="card-title"><Server size={18} /> Training & Prediction Telemetry</span></div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Model</th>
-                  <th>Training Time</th>
-                  <th>Prediction Time (per 1k)</th>
-                  <th>MAPE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data?.comparison?.map((c: any) => (
-                  <tr key={c.model}>
-                    <td style={{ fontWeight: c.model === 'LightGBM' ? 700 : 500, color: c.model === 'LightGBM' ? 'var(--blue-hi)' : 'var(--tx-1)' }}>
-                        {c.model} {c.model === 'LightGBM' && '(Production)'}
-                    </td>
-                    <td className="mono">{c.training_time}s</td>
-                    <td className="mono">{c.prediction_time}ms</td>
-                    <td className="mono">{c.mape}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
 

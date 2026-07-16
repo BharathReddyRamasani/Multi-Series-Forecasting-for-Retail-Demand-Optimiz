@@ -131,7 +131,7 @@ export default function ModelOps() {
                 return (
                   <motion.div key={feat.feature} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.04 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx-1)', truncate: true }}>{feat.feature}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{feat.feature}</span>
                       <span className="mono" style={{ fontSize: 12, color: 'var(--tx-2)', fontWeight: 600, flexShrink: 0 }}>{feat.importance.toFixed(2)}</span>
                     </div>
                     <div style={{ height: 6, background: 'var(--surface-3)', borderRadius: 100, overflow: 'hidden' }}>

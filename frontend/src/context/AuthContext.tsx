@@ -10,7 +10,8 @@ interface User {
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
-  login: (email: string) => void
+  isLoaded: boolean
+  login: () => void
   logout: () => void
   globalStoreId: number
   setGlobalStoreId: (storeId: number) => void
@@ -18,29 +19,36 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+import { useAuth as useClerkAuth, useUser as useClerkUser, useClerk } from '@clerk/clerk-react'
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const { isSignedIn, isLoaded, signOut } = useClerkAuth()
+  const { user: clerkUser, isLoaded: isUserLoaded } = useClerkUser()
+  const clerk = useClerk()
+  
   const [globalStoreId, setGlobalStoreId] = useState<number>(1)
   const navigate = useNavigate()
 
-  const login = (email: string) => {
-    // Mock login
-    const newUser = {
-      name: email.split('@')[0],
-      email,
-      role: 'Store Manager',
-    }
-    setUser(newUser)
-    navigate('/')
+  const login = () => {
+    clerk.openSignIn()
   }
 
   const logout = () => {
-    setUser(null)
+    signOut()
     navigate('/landing')
   }
 
+  const mappedUser = clerkUser ? {
+    name: clerkUser.fullName || clerkUser.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User',
+    email: clerkUser.primaryEmailAddress?.emailAddress || '',
+    role: 'Store Manager',
+  } : null
+
+  const isFullyLoaded = isLoaded && isUserLoaded
+  const isAuthenticated = isFullyLoaded && isSignedIn
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: user !== null, login, logout, globalStoreId, setGlobalStoreId }}>
+    <AuthContext.Provider value={{ user: mappedUser, isAuthenticated: !!isAuthenticated, isLoaded: isFullyLoaded, login, logout, globalStoreId, setGlobalStoreId }}>
       {children}
     </AuthContext.Provider>
   )

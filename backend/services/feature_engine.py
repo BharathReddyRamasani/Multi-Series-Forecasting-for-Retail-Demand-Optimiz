@@ -13,6 +13,10 @@ HOLIDAYS = [
     "2017-01-26", "2017-08-15", "2017-10-02", "2017-10-19", "2017-11-07",
     "2018-01-26", "2018-08-15", "2018-10-02", "2018-10-08", "2018-10-27",
     "2019-01-26", "2019-08-15", "2019-10-02", "2019-10-27", "2019-11-15",
+    "2020-01-26", "2020-08-15", "2020-10-02", "2020-10-24", "2020-11-14",
+    "2021-01-26", "2021-08-15", "2021-10-02", "2021-10-15", "2021-11-04",
+    "2022-01-26", "2022-08-15", "2022-10-02", "2022-10-05", "2022-10-24",
+    "2023-01-26", "2023-08-15", "2023-10-02", "2023-10-24", "2023-11-12",
 ]
 
 HOLIDAY_DATES = pd.to_datetime(HOLIDAYS)
@@ -76,7 +80,7 @@ def _add_holiday_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def _add_lag_features(df: pd.DataFrame, sales_col: str = "sales") -> pd.DataFrame:
     """Lag features at standard offsets."""
-    lags = [1, 2, 3, 7, 14, 21, 28, 60, 90, 180, 364]
+    lags = [1, 2, 3, 7, 14, 21, 28, 30, 60, 90, 180, 364]
     for lag in lags:
         df[f"sales_lag_{lag}"] = df[sales_col].shift(lag)
     return df
@@ -84,7 +88,7 @@ def _add_lag_features(df: pd.DataFrame, sales_col: str = "sales") -> pd.DataFram
 
 def _add_rolling_features(df: pd.DataFrame, sales_col: str = "sales") -> pd.DataFrame:
     """Rolling window aggregates."""
-    windows = [7, 14, 28, 60, 90]
+    windows = [7, 14, 28, 30, 60, 90]
     for w in windows:
         rolled = df[sales_col].shift(1).rolling(w, min_periods=1)
         df[f"sales_roll_mean_{w}"]   = rolled.mean()
@@ -234,7 +238,7 @@ def engineer_features(
 
         # Extract the last row (forecast date)
         row = full.iloc[-1]
-        feat_dict = {col: row.get(col, np.nan) for col in FEATURE_COLUMNS}
+        feat_dict = row.to_dict()
         all_feature_rows.append(feat_dict)
 
         # Fill NaN placeholder with rolling mean as synthetic "actual" for next step
@@ -246,5 +250,5 @@ def engineer_features(
             ignore_index=True,
         )
 
-    feat_df = pd.DataFrame(all_feature_rows, index=forecast_dates)[FEATURE_COLUMNS]
+    feat_df = pd.DataFrame(all_feature_rows, index=forecast_dates)
     return feat_df

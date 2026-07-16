@@ -47,28 +47,8 @@ def generate_synthetic_data(num_stores=10, num_items=50, start_date='2020-01-01'
 def setup_database():
     db_path = os.path.join(os.path.dirname(__file__), 'forecast.db')
     
-    if os.path.exists(db_path):
-        print(f"Database {db_path} already exists. Skipping generation.")
-        return
-        
-    df = generate_synthetic_data()
-    
-    print(f"Saving {len(df)} rows to {db_path}...")
-    
+    # Always ensure the tables exist with correct schema
     conn = sqlite3.connect(db_path)
-    
-    # Stores table
-    stores_df = pd.DataFrame({'store_id': df['store'].unique()})
-    stores_df.to_sql('stores', conn, if_exists='replace', index=False)
-    
-    # Items table
-    items_df = pd.DataFrame({'item_id': df['item'].unique()})
-    items_df.to_sql('items', conn, if_exists='replace', index=False)
-    
-    # Sales table
-    df.to_sql('sales', conn, if_exists='replace', index=False)
-    
-    # Empty forecast_history and model_results tables
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS forecast_history (
@@ -94,16 +74,42 @@ def setup_database():
         prediction_time_ms REAL
     )
     ''')
+    conn.commit()
     
-    # Insert dummy model results
-    cursor.execute('''
-    INSERT INTO model_results (model_name, rmse, mae, mape, r2, training_time_sec, prediction_time_ms)
-    VALUES 
-    ('LightGBM', 9.2, 7.1, 15.4, 0.91, 12.5, 45.2),
-    ('XGBoost', 10.4, 8.2, 17.1, 0.88, 25.1, 80.5),
-    ('CatBoost', 9.5, 7.4, 16.0, 0.90, 45.0, 60.1),
-    ('Random Forest', 14.2, 11.5, 22.4, 0.81, 120.0, 150.0)
-    ''')
+    if os.path.exists(db_path) and os.path.getsize(db_path) > 0:
+        # Check if sales table exists to know if we need to generate synthetic data
+        cursor.execute("SELECT count(name) FROM sqlite_master WHERE type='table' AND name='sales'")
+        if cursor.fetchone()[0] == 1:
+            print(f"Database {db_path} already exists with data. Skipping generation.")
+            conn.close()
+            return
+            
+    df = generate_synthetic_data()
+    
+    print(f"Saving {len(df)} rows to {db_path}...")
+    
+    # Stores table
+    stores_df = pd.DataFrame({'store_id': df['store'].unique()})
+    stores_df.to_sql('stores', conn, if_exists='replace', index=False)
+    
+    # Items table
+    items_df = pd.DataFrame({'item_id': df['item'].unique()})
+    items_df.to_sql('items', conn, if_exists='replace', index=False)
+    
+    # Sales table
+    df.to_sql('sales', conn, if_exists='replace', index=False)
+    
+    # Insert dummy model results if empty
+    cursor.execute('SELECT COUNT(*) FROM model_results')
+    if cursor.fetchone()[0] == 0:
+        cursor.execute('''
+        INSERT INTO model_results (model_name, rmse, mae, mape, r2, training_time_sec, prediction_time_ms)
+        VALUES 
+        ('LightGBM', 9.2, 7.1, 15.4, 0.91, 12.5, 45.2),
+        ('XGBoost', 10.4, 8.2, 17.1, 0.88, 25.1, 80.5),
+        ('CatBoost', 9.5, 7.4, 16.0, 0.90, 45.0, 60.1),
+        ('Random Forest', 14.2, 11.5, 22.4, 0.81, 120.0, 150.0)
+        ''')
     
     conn.commit()
     conn.close()

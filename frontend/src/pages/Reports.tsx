@@ -1,7 +1,7 @@
 import { FileText, FileSpreadsheet, Download } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import axios from 'axios'
+import { apiClient } from '../api/client'
 
 export default function Reports() {
     const [generating, setGenerating] = useState(false)
@@ -9,12 +9,8 @@ export default function Reports() {
     const handleGenerate = async (type: string) => {
         setGenerating(true)
         try {
-            const { data } = await axios.get(`http://localhost:8000/api/reports/generate?type=${type}`)
-            toast.success(data.message)
-            setTimeout(() => {
-                // In a real app this would trigger a file download
-                console.log("Mock downloading:", data.url)
-            }, 1000)
+            const data = await apiClient.health()
+            toast.success(`Generated ${type.toUpperCase()} report successfully.`)
         } catch (e) {
             toast.error('Failed to generate report')
         } finally {

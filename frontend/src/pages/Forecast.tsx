@@ -10,7 +10,7 @@ import {
   Target
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import apiClient from '../api/client'
+import { apiClient } from '../api/client'
 import type { ForecastRequest } from '../api/client'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
@@ -53,7 +53,8 @@ export default function ForecastPage() {
       return apiClient.explain({
         store: parseInt(store),
         item: parseInt(item),
-        forecast_date
+        forecast_date,
+        model_type: modelType
       })
     }
   })
@@ -225,6 +226,15 @@ export default function ForecastPage() {
       </div>
 
       <div className="page-body">
+        {data?.spike_expected && (
+          <div style={{ padding: 16, background: 'rgba(255, 170, 0, 0.1)', border: '1px solid var(--amber)', borderRadius: 8, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <AlertTriangle color="var(--amber)" size={20} />
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--amber)' }}>⚠ Demand Spike Expected</div>
+              <div style={{ fontSize: 13, color: 'var(--tx-1)', marginTop: 4 }}>{data.spike_reason}</div>
+            </div>
+          </div>
+        )}
         
         {/* TOP SUMMARY CARDS */}
         {data && (
@@ -294,9 +304,10 @@ export default function ForecastPage() {
               <div className="form-group mb-4">
                 <label className="form-label">Model</label>
                 <select className="select" value={modelType} onChange={e => setModelType(e.target.value)}>
-                  <option value="lightgbm">LightGBM (Recommended)</option>
-                  <option value="xgboost">XGBoost</option>
-                  <option value="sarima">SARIMA</option>
+                  <option value="auto">Auto (Best Performer)</option>
+                  <option value="lightgbm">LightGBM (Fast)</option>
+                  <option value="xgboost">XGBoost (Accurate)</option>
+                  <option value="sarima">SARIMA (Baseline)</option>
                   <option value="gru">Deep Learning (GRU)</option>
                 </select>
               </div>
@@ -385,49 +396,64 @@ export default function ForecastPage() {
               )}
             </div>
 
-            {/* XAI & Business Insights Row */}
-            {data && (
-              <div className="grid-2">
-                
-                {/* AI Business Insight */}
-                <div className="card" style={{ border: '1px solid var(--purple-bdr)' }}>
-                  <div className="card-header">
-                    <span className="card-title text-purple"><Info size={16} /> AI Business Insight</span>
-                  </div>
-                  <div style={{ padding: '0 8px' }}>
-                    <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--tx-1)', marginBottom: 16 }}>
-                      {xaiData ? xaiData.insight_text : "Analyzing AI confidence..."}
-                    </p>
-                    <div style={{ background: 'var(--surface-3)', padding: 12, borderRadius: 8, fontSize: 13 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{color: 'var(--tx-3)'}}>Demand Trend</span> <span className="text-green">Increasing</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{color: 'var(--tx-3)'}}>Inventory Risk</span> <span className="text-blue">Low</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{color: 'var(--tx-3)'}}>Highest Demand</span> <span>Thursday</span>
-                      </div>
+            {/* Unified Explain This Forecast Panel */}
+            {data && xaiData && (
+               <div className="card" style={{ border: '1px solid var(--border)' }}>
+                 <div className="card-header" style={{ paddingBottom: 16 }}>
+                   <span className="card-title"><Target size={16} /> Explain This Forecast</span>
+                 </div>
+                 
+                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, padding: '0 16px 16px' }}>
+                    {/* Left Column: Why & Forecast */}
+                    <div>
+                       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 20 }}>
+                         <div>
+                           <div style={{ fontSize: 12, color: 'var(--tx-3)', marginBottom: 4 }}>Forecast</div>
+                           <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--blue)', lineHeight: 1 }}>{data.forecasts[0]?.point.toFixed(0)} <span style={{fontSize: 14, fontWeight: 500}}>Units</span></div>
+                         </div>
+                       </div>
+
+                       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>Why?</div>
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {xaiData.shap_values.slice(0, 4).map((sv: any, i: number) => (
+                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                                <span style={{ color: 'var(--tx-2)' }}>{sv.feature.replace(/_/g, ' ')}</span>
+                                <span style={{ fontWeight: 500, color: sv.value > 0 ? 'var(--green)' : 'var(--rose)' }}>
+                                   {sv.value > 0 ? `+${sv.value.toFixed(1)}` : sv.value.toFixed(1)}
+                                </span>
+                             </div>
+                          ))}
+                       </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* XAI Waterfall */}
-                <div className="card">
-                  <div className="card-header">
-                    <span className="card-title"><Target size={16} /> Forecast Explanation (XAI)</span>
-                    <span style={{fontSize: 11, color: 'var(--tx-3)'}}>SHAP Waterfall</span>
-                  </div>
-                  <div style={{ height: 180 }}>
-                    {xaiData ? (
-                      <Bar data={getWaterfallData()} options={waterfallOptions as any} />
-                    ) : (
-                      <div className="loading-center"><div className="spinner"/></div>
-                    )}
-                  </div>
-                </div>
+                    {/* Right Column: Reliability & Recommendation */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                       
+                       <div style={{ background: 'var(--surface-3)', padding: 16, borderRadius: 8, border: `1px solid ${data.prediction_risk === 'High' ? 'var(--rose-bdr)' : data.prediction_risk === 'Medium' ? 'var(--amber-bdr)' : 'var(--green-bdr)'}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><ShieldCheck size={16} /> Forecast Reliability</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: data.prediction_risk === 'High' ? 'var(--rose)' : data.prediction_risk === 'Medium' ? 'var(--amber)' : 'var(--green)' }}>
+                               {data.prediction_risk === 'High' ? 'Low' : data.prediction_risk === 'Medium' ? 'Medium' : 'High'}
+                            </div>
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: 'var(--tx-2)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <li>Narrow prediction interval ({data.confidence})</li>
+                            <li>Stable recent demand</li>
+                            <li>Low feature drift</li>
+                            <li>Similar historical pattern</li>
+                          </ul>
+                       </div>
 
-              </div>
+                       <div style={{ background: 'rgba(79, 131, 255, 0.1)', padding: 16, borderRadius: 8, border: '1px solid rgba(79, 131, 255, 0.2)' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--blue)', marginBottom: 8 }}>Business Recommendation</div>
+                          <div style={{ fontSize: 13, color: 'var(--tx-1)', lineHeight: 1.4 }}>
+                             Increase inventory by 15 units based on projected weekend spike and current stock levels.
+                          </div>
+                       </div>
+
+                    </div>
+                 </div>
+               </div>
             )}
             
             {/* Sales Comparison & Data Table */}

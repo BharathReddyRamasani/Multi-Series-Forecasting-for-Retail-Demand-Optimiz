@@ -1,21 +1,12 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { ArrowRight, TrendingUp, Activity, ShieldCheck, CheckCircle2 } from 'lucide-react'
+import { TrendingUp, Activity, ShieldCheck, CheckCircle2 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { SignIn } from '@clerk/clerk-react'
 
 const c = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }
 const up = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } } }
 
 export default function Login() {
-  const [email, setEmail] = useState('')
-  const { login } = useAuth()
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (email) login(email)
-  }
-
   return (
     <div className="auth-split">
 
@@ -38,31 +29,9 @@ export default function Login() {
             Sign in to access your store intelligence hub.
           </motion.p>
 
-          <motion.form variants={up} onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="form-group">
-              <label className="form-label">Work email</label>
-              <input
-                type="email"
-                className="input"
-                placeholder="manager@retail.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label className="form-label" style={{ marginBottom: 0 }}>Password</label>
-                <a href="#" style={{ fontSize: 12, color: 'var(--blue-hi)' }}>Forgot password?</a>
-              </div>
-              <input type="password" className="input" placeholder="••••••••" required />
-            </div>
-
-            <button type="submit" className="btn btn-primary w-full" style={{ marginTop: 8, padding: '13px 20px', fontSize: 14, fontWeight: 600, borderRadius: 'var(--r-lg)' }}>
-              Sign in <ArrowRight size={16} />
-            </button>
-          </motion.form>
+          <motion.div variants={up} style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+            <SignIn routing="path" path="/login" signUpUrl="/register" />
+          </motion.div>
 
           <motion.p variants={up} style={{ marginTop: 28, fontSize: 13, color: 'var(--tx-3)', textAlign: 'center' }}>
             Don't have an account?{' '}

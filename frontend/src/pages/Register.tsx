@@ -1,8 +1,7 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { UserPlus, Activity, TrendingUp, ShieldCheck } from 'lucide-react'
+import { TrendingUp, Activity, ShieldCheck } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { SignUp } from '@clerk/clerk-react'
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -15,14 +14,6 @@ const itemFade = {
 }
 
 export default function Register() {
-  const [email, setEmail] = useState('')
-  const { login } = useAuth()
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (email) login(email)
-  }
-
   return (
     <div className="auth-split">
       {/* Left Column: Form */}
@@ -35,33 +26,11 @@ export default function Register() {
           <motion.h1 variants={itemFade} style={{ fontSize: 32, fontWeight: 800, color: 'var(--t-primary)', marginBottom: 8 }}>Create Account</motion.h1>
           <motion.p variants={itemFade} style={{ color: 'var(--t-secondary)', fontSize: 15, marginBottom: 40 }}>Join DemandAI and optimize your store inventory.</motion.p>
 
-          <motion.form variants={itemFade} onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div className="form-group">
-              <label className="form-label">Full Name</label>
-              <input type="text" className="input" placeholder="Jane Doe" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Work Email</label>
-              <input 
-                type="email" 
-                className="input" 
-                placeholder="manager@retail.com" 
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required 
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <input type="password" className="input" placeholder="••••••••" required />
-            </div>
-            
-            <button type="submit" className="btn btn-primary w-full glow-border" style={{ marginTop: 16, padding: 14, fontSize: 15 }}>
-              Create Account <UserPlus size={16} style={{ marginLeft: 8 }} />
-            </button>
-          </motion.form>
-
-          <motion.p variants={itemFade} style={{ marginTop: 32, fontSize: 14, color: 'var(--t-muted)' }}>
+          <motion.div variants={itemFade} style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+            <SignUp routing="path" path="/register" signInUrl="/login" />
+          </motion.div>
+          
+          <motion.p variants={itemFade} style={{ marginTop: 32, fontSize: 14, color: 'var(--t-muted)', textAlign: 'center' }}>
             Already have an account? <Link to="/login" style={{ color: 'var(--t-primary)', fontWeight: 600 }}>Sign In</Link>
           </motion.p>
         </motion.div>

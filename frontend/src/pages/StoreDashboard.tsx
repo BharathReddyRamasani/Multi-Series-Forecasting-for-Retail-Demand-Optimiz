@@ -44,7 +44,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
     datasets: [{
       data,
       borderColor: color,
-      backgroundColor: color.replace(')', ', 0.08)').replace('rgb', 'rgba'),
+      backgroundColor: color.includes('rgba') ? color.replace(/,\s*[\d.]+\)/, ', 0.08)') : 'rgba(255,255,255,0.08)',
       borderWidth: 2,
       fill: true,
       tension: 0.4,
