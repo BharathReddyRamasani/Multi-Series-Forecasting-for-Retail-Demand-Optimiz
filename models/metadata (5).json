@@ -1,0 +1,14 @@
+{
+    "model_name": "LightGBM_Retail_Forecaster",
+    "version": "1.0.0",
+    "training_date": "2026-07-15 11:36:41",
+    "dataset_version": "Retail-v1",
+    "random_seed": 42,
+    "feature_count": 74,
+    "cv_performance": {
+        "mean_rmse": 3.9840683074129535,
+        "mean_mae": 3.0066903194001187,
+        "mean_mape": 6.621386831497619,
+        "mean_smape": 6.524567536338909
+    }
+}

@@ -1,0 +1,13 @@
+{
+    "model_type": "GRU",
+    "metrics": {
+        "rmse": 6.3651,
+        "mae": 4.6424,
+        "r2": 0.9501,
+        "median_ae": 3.3011,
+        "mbe": -1.5673,
+        "wape": 8.4905
+    },
+    "scaler_path": "gru_scaler.joblib",
+    "model_path": "retail_gru_model.h5"
+}
