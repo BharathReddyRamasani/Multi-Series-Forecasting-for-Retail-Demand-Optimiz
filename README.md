@@ -162,3 +162,4 @@ curl -X POST http://localhost:8000/api/forecast \
 | Routing | React Router v6 |
 | HTTP | Axios |
 | Styling | Vanilla CSS (dark theme) |
+
