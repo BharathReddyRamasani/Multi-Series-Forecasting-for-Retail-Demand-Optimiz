@@ -40,13 +40,21 @@ async def get_dataset_info() -> DatasetInfo:
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM sales")
         rows = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM sales WHERE sales IS NULL OR sales = ''")
+        missing = cursor.fetchone()[0]
+        cursor.execute(
+            "SELECT COUNT(*) FROM ("
+            "SELECT date, store, item FROM sales GROUP BY date, store, item HAVING COUNT(*) > 1"
+            ")"
+        )
+        duplicates = cursor.fetchone()[0]
     finally:
         conn.close()
     return DatasetInfo(
         rows=rows,
         columns=4,
-        missing_values=0,
-        duplicates=0
+        missing_values=int(missing),
+        duplicates=int(duplicates),
     )
 
 class DataQuality(BaseModel):
@@ -58,12 +66,56 @@ class DataQuality(BaseModel):
 
 @router.get("/quality")
 async def get_data_quality() -> DataQuality:
+    """Real data-quality statistics computed from the sales table."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM sales")
+        total = cursor.fetchone()[0] or 0
+        cursor.execute("SELECT COUNT(*) FROM sales WHERE sales IS NULL OR sales = ''")
+        missing = cursor.fetchone()[0] or 0
+        cursor.execute(
+            "SELECT COUNT(*) FROM ("
+            "SELECT date, store, item FROM sales GROUP BY date, store, item HAVING COUNT(*) > 1"
+            ")"
+        )
+        duplicates = cursor.fetchone()[0] or 0
+        # Outliers: rows where sales deviates > 4 sigmas from the global mean.
+        cursor.execute("SELECT AVG(sales), AVG(sales*sales) FROM sales WHERE sales IS NOT NULL")
+        mean, mean_sq = cursor.fetchone()
+        mean = mean or 0.0
+        var = (mean_sq or 0.0) - mean * mean
+        std = var ** 0.5 if var and var > 0 else 0.0
+        outliers = 0
+        if std > 0:
+            cursor.execute(
+                "SELECT COUNT(*) FROM sales WHERE sales IS NOT NULL "
+                "AND ABS(sales - ?) > ? * 4",
+                (mean, std),
+            )
+            outliers = cursor.fetchone()[0] or 0
+        # Freshness: days since the most recent sales date.
+        cursor.execute("SELECT MAX(date) FROM sales")
+        max_date = cursor.fetchone()[0]
+        freshness = "No data"
+        if max_date:
+            try:
+                from datetime import datetime
+                days = (datetime.now() - datetime.strptime(max_date, "%Y-%m-%d")).days
+                freshness = f"{days} days ago"
+            except Exception:
+                freshness = str(max_date)
+    finally:
+        conn.close()
+
+    missing_pct = (missing / total * 100.0) if total else 0.0
+    data_drift = missing_pct > 5.0 or outliers > total * 0.02
     return DataQuality(
-        missing_values_pct=0.0,
-        duplicate_rows=0,
-        outliers=18,
-        data_drift=False,
-        freshness="Updated Today"
+        missing_values_pct=round(missing_pct, 2),
+        duplicate_rows=int(duplicates),
+        outliers=int(outliers),
+        data_drift=bool(data_drift),
+        freshness=freshness,
     )
 
 class FeatureDrift(BaseModel):
@@ -75,29 +127,54 @@ class FeatureDrift(BaseModel):
 
 @router.get("/drift")
 async def get_data_drift() -> List[FeatureDrift]:
-    return [
-        FeatureDrift(
-            feature="Rolling Mean",
-            training_value=42.0,
-            current_value=51.0,
-            drift_pct=18.0,
-            has_drifted=True
-        ),
-        FeatureDrift(
-            feature="Lag 7",
-            training_value=35.0,
-            current_value=36.0,
-            drift_pct=2.8,
-            has_drifted=False
-        ),
-        FeatureDrift(
-            feature="Weekend Demand",
-            training_value=60.0,
-            current_value=58.0,
-            drift_pct=-3.3,
-            has_drifted=False
+    """Real drift between the training window (2020-2021) and the most recent
+    6 months of sales, measured on aggregate demand statistics."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT AVG(sales), AVG(sales*sales) FROM sales "
+            "WHERE date < '2022-01-01' AND sales IS NOT NULL"
         )
+        t_mean, t_sq = cursor.fetchone()
+        cursor.execute(
+            "SELECT AVG(sales), AVG(sales*sales) FROM sales "
+            "WHERE date >= '2022-07-01' AND sales IS NOT NULL"
+        )
+        c_mean, c_sq = cursor.fetchone()
+    finally:
+        conn.close()
+
+    def _stat(mean, sq):
+        mean = mean or 0.0
+        var = (sq or 0.0) - mean * mean
+        return mean, (var ** 0.5 if var and var > 0 else 0.0)
+
+    t_m, t_s = _stat(t_mean, t_sq)
+    c_m, c_s = _stat(c_mean, c_sq)
+
+    def _drift(tr, cu):
+        if tr == 0:
+            return 0.0
+        return round((cu - tr) / abs(tr) * 100.0, 1)
+
+    rows = [
+        FeatureDrift(
+            feature="Mean Daily Demand",
+            training_value=round(t_m, 2),
+            current_value=round(c_m, 2),
+            drift_pct=_drift(t_m, c_m),
+            has_drifted=abs(_drift(t_m, c_m)) > 15.0,
+        ),
+        FeatureDrift(
+            feature="Demand Volatility (Std)",
+            training_value=round(t_s, 2),
+            current_value=round(c_s, 2),
+            drift_pct=_drift(t_s, c_s),
+            has_drifted=abs(_drift(t_s, c_s)) > 15.0,
+        ),
     ]
+    return rows
 
 
 class DataRow(BaseModel):

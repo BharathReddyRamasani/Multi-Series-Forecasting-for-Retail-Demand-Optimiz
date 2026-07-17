@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from typing import List
 from database import get_db_connection
@@ -38,28 +38,24 @@ async def get_history() -> List[ForecastJob]:
     ]
 
 @router.get("/accuracy-history")
-async def get_accuracy_history(store: int, item: int = None):
-    """Return historical RMSE trends for a given store/item."""
-    import random as _random
-    rng = _random.Random(store * 10 + (item or 0))
-    
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"]
-    
-    base_rmse = rng.uniform(6.5, 9.0)
-    history = []
-    
-    for i, month in enumerate(months):
-        rmse = max(4.0, base_rmse - (i * rng.uniform(0.1, 0.4)) + rng.uniform(-0.5, 0.5))
-        history.append({
-            "month": month,
-            "rmse": round(rmse, 2)
-        })
-        
-    trend = "Improving" if history[-1]["rmse"] < history[0]["rmse"] else "Degrading"
-        
+async def get_accuracy_history(store: int, item: int = None, request: Request = None):
+    """Return real per-month backtest RMSE for a store-item (2022)."""
+    forecaster = request.app.state.forecaster
+    if not forecaster.is_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded.")
+
+    target_item = item if item else 1
+    history = forecaster.monthly_backtest(store, target_item, year=2022)
+    trend = "Stable"
+    if len(history) >= 2:
+        if history[-1]["rmse"] < history[0]["rmse"] - 0.5:
+            trend = "Improving"
+        elif history[-1]["rmse"] > history[0]["rmse"] + 0.5:
+            trend = "Degrading"
+
     return {
         "store": store,
         "item": item,
         "history": history,
-        "trend": trend
+        "trend": trend,
     }

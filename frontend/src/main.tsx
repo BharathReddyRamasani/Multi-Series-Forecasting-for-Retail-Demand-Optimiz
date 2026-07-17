@@ -9,6 +9,15 @@ import './index.css'
 
 
 
+import { ClerkProvider } from '@clerk/clerk-react'
+
+// Import your publishable key
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+
+if (!PUBLISHABLE_KEY) {
+  throw new Error("Missing Publishable Key")
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -22,24 +31,26 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: '#1e293b',
-              color: '#f1f5f9',
-              border: '1px solid #334155',
-              borderRadius: '12px',
-              fontFamily: 'Inter, sans-serif',
-            },
-          }}
-        />
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: '#1e293b',
+                color: '#f1f5f9',
+                border: '1px solid #334155',
+                borderRadius: '12px',
+                fontFamily: 'Inter, sans-serif',
+              },
+            }}
+          />
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ClerkProvider>
   </React.StrictMode>,
 )

@@ -1,36 +1,71 @@
-# ---- Build frontend ----
+# ========== BUILD STAGE ==========
+# Build frontend
 FROM node:20-alpine AS frontend-builder
 
-WORKDIR /build/frontend
-COPY frontend/package.json frontend/package-lock.json ./
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
 RUN npm ci
-COPY frontend/ ./
+COPY frontend/ .
 RUN npm run build
 
-# ---- Backend ----
-FROM python:3.11-slim
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc && rm -rf /var/lib/apt/lists/*
-
-# Install Python deps
-WORKDIR /install
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# ========== BACKEND DEPENDENCIES ==========
+FROM python:3.11-slim AS backend-deps
 
 WORKDIR /app/backend
-COPY backend/ ./
-COPY models/ /app/models/
 
-# Copy built frontend into static/
-COPY --from=frontend-builder /build/frontend/dist/ /app/backend/static/
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV ENV=production
-# Default CORS origins - can be overridden at runtime
-ENV CORS_ORIGINS=http://localhost:8000,http://localhost:3000,http://127.0.0.1:3000
-# Number of Gunicorn workers
-ENV WORKERS=4
+# Install Python dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# ========== FINAL STAGE ==========
+FROM python:3.11-slim
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+WORKDIR /app
+
+# Copy built frontend
+COPY --from=frontend-builder /app/frontend/dist ./backend/static/
+
+# Copy backend dependencies
+COPY --from=backend-deps /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy application code
+COPY backend/ ./backend/
+COPY models/ ./models/
+COPY docker-compose.yml ./
+COPY .dockerignore ./
+COPY README.md ./
+
+# Create necessary directories
+RUN mkdir -p backend/logs && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
 EXPOSE 8000
 
-# Use gunicorn for production with configurable workers
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "$WORKERS", "--worker-class", "uvicorn.workers.UvicornWorker", "main:app"]
+# Environment variables with sensible defaults
+ENV ENV=production \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    WORKERS=4 \
+    HOST=0.0.0.0 \
+    PORT=8000 \
+    LOG_LEVEL=info
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Entry point
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "$WORKERS", "--worker-class", "uvicorn.workers.UvicornWorker", "--log-level", "$LOG_LEVEL", "main:app"]

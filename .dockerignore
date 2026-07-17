@@ -1,20 +1,102 @@
-node_modules/
-.git/
-.gitignore
+# Development files
+.node_modules
+npm-debug.log
+yarn.lock
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# Python
+__pycache__
 __pycache__/
-*.pyc
-.env
-.env.example
-*.log
-.DS_Store
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.egg-info/
+.distutils/*
+.build/
+.develop-eggs/
+.dist/
+.downloads/
+.eggs/
+.lib/
+.lib64/
+ parts/
+ sdist/
+ var/
+ wheels/
+ share/
+ python-wheels/
+ env/
+ venv/
+ ENV/
+ env.bak/
+ venv.bak/
+ .installed.cfg
+ *.egg
+ .pytest_cache/
+ .coverage
+ .coverage.*
+ .cache
+ nosetests.xml
+ coverage.xml
+ *.cover
+ .hypothesis/
+ .tox/
+ .nox/
+ .coverage.*
+ .cache
+ .Built
+ pip-log.txt
+ pip-delete-this-directory.txt
+ .python-version
+ .env
+ .venv
+ env/
+ venv/
+ .mypy_cache/
+ .dmypy.json
+ dmypy.json
+ .pyre/
+ .pyre_server/
+ .vscode/
+ .idea/
+ *.swp
+ *.swo
+ *~
+
+# IDEs and editors
 .vscode/
 .idea/
-ipynb_file/
-README_START.txt
-backend/static/
-backend/__pycache__/
+*.sublime-project
+*.sublime-workspace
+
+# Project specific
+backend/static/  # Will be built during Docker build
 frontend/node_modules/
 frontend/dist/
-backend/*.log
+.git/
+.gitignore
+Dockerfile
+docker-compose.yml
+README.md
+LICENSE
+Makefile
+docs/
+tests/
+notebooks/
+experiments/
+*.ipynb
+
+# Logs
+*.log
+logs/
+backend/logs/
 backend/server_*.log
-backend/debug_test.log
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.ba

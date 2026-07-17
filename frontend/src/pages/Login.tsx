@@ -1,41 +1,17 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { TrendingUp, Activity, ShieldCheck, CheckCircle2 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useAuth } from '../context/AuthContext'
-import { toast } from 'react-hot-toast'
+import { SignIn } from '@clerk/clerk-react'
 
 const c = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }
 const up = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } } }
 
 export default function Login() {
-  const { login } = useAuth()
-  const navigate = useNavigate()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    try {
-      await login(username, password)
-      toast.success('Signed in successfully')
-      navigate('/')
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail || 'Login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="auth-split">
-
       {/* ── Left: Login Form ───────────────────────────────── */}
       <div className="auth-form-col">
         <motion.div variants={c} initial="hidden" animate="show" className="auth-form-container">
-
           {/* Logo */}
           <motion.div variants={up} style={{ marginBottom: 36 }}>
             <Link to="/landing" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
@@ -44,48 +20,8 @@ export default function Login() {
             </Link>
           </motion.div>
 
-          <motion.h1 variants={up} style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 28, fontWeight: 800, color: 'var(--tx-1)', marginBottom: 8, letterSpacing: '-0.025em' }}>
-            Welcome back
-          </motion.h1>
-          <motion.p variants={up} style={{ color: 'var(--tx-3)', fontSize: 14, marginBottom: 36 }}>
-            Sign in to access your store intelligence hub.
-          </motion.p>
-
-          <motion.form variants={up} onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <input
-              className="input"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              required
-            />
-            <input
-              className="input"
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-            <button className="btn btn-blue w-full" type="submit" disabled={loading}>
-              {loading ? <div className="spinner" /> : 'Sign in'}
-            </button>
-          </motion.form>
-
-          <motion.p variants={up} style={{ marginTop: 28, fontSize: 13, color: 'var(--tx-3)', textAlign: 'center' }}>
-            Don't have an account?{' '}
-            <Link to="/register" style={{ color: 'var(--tx-1)', fontWeight: 600 }}>Request access</Link>
-          </motion.p>
-
-          {/* Trust badges */}
-          <motion.div variants={up} style={{ marginTop: 40, display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-            {['SOC 2 Ready', 'GDPR Safe', 'AES-256'].map(t => (
-              <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--tx-3)' }}>
-                <CheckCircle2 size={12} style={{ color: 'var(--green)' }} />{t}
-              </span>
-            ))}
+          <motion.div variants={up} style={{ display: 'flex', justifyContent: 'center' }}>
+            <SignIn routing="path" path="/login" signUpUrl="/register" />
           </motion.div>
 
         </motion.div>

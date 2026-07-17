@@ -74,12 +74,12 @@ async def get_model_performance() -> ModelPerfResponse:
     return ModelPerfResponse(
         model_used="LightGBM",
         training_time=f"{metrics.get('training_time_sec', 0)}s",
-        features_used=74,
+        features_used=64,
         rmse=metrics.get("rmse", 0),
         mae=metrics.get("mae", 0),
         mape=metrics.get("mape", 0),
         r2=metrics.get("r2", 0),
-        rmsle=metrics.get("rmse", 0) / 100.0,
+        rmsle=metrics.get("rmsle", 0),
         comparison=comparison,
     )
 

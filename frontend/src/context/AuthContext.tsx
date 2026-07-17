@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiClient, getToken, setToken, clearToken } from '../api/client'
+import { useAuth as useClerkAuth, useUser as useClerkUser, useClerk } from '@clerk/clerk-react'
 
 interface User {
   username: string
@@ -14,7 +14,7 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoaded: boolean
-  login: (username: string, password: string) => Promise<void>
+  login: () => void
   logout: () => void
   globalStoreId: number
   setGlobalStoreId: (storeId: number) => void
@@ -23,53 +23,48 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoaded, setIsLoaded] = useState(false)
+  const { isSignedIn, isLoaded, signOut } = useClerkAuth()
+  const { user: clerkUser, isLoaded: isUserLoaded } = useClerkUser()
+  const clerk = useClerk()
+
+  React.useEffect(() => {
+    import('../api/client').then(({ setGetTokenFn }) => {
+      setGetTokenFn(async () => {
+        if (clerk.session) {
+          return await clerk.session.getToken()
+        }
+        return null
+      })
+    })
+  }, [clerk.session])
+
   const [globalStoreId, setGlobalStoreId] = useState<number>(1)
   const navigate = useNavigate()
 
-  // On mount, if we have a token, validate it by fetching the current user.
-  useEffect(() => {
-    const token = getToken()
-    if (!token) {
-      setIsLoaded(true)
-      return
-    }
-    apiClient
-      .me()
-      .then((u) => setUser(u as User))
-      .catch(() => clearToken())
-      .finally(() => setIsLoaded(true))
-  }, [])
-
-  const login = async (username: string, password: string) => {
-    const res = await apiClient.login(username, password)
-    setToken(res.access_token)
-    const me = await apiClient.me()
-    setUser(me as User)
+  const login = () => {
+    clerk.openSignIn()
   }
 
   const logout = () => {
-    clearToken()
-    setUser(null)
+    signOut()
     navigate('/landing')
   }
 
-  const mappedUser: User | null = user
-    ? {
-        username: user.username,
-        email: user.email,
-        full_name: user.full_name,
-        roles: user.roles ?? [],
-      }
-    : null
+  const mappedUser: User | null = clerkUser ? {
+    username: clerkUser.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User',
+    email: clerkUser.primaryEmailAddress?.emailAddress || '',
+    full_name: clerkUser.fullName || '',
+    roles: ['user'],
+  } : null
+
+  const isFullyLoaded = isLoaded && isUserLoaded
 
   return (
     <AuthContext.Provider
       value={{
         user: mappedUser,
-        isAuthenticated: !!mappedUser,
-        isLoaded,
+        isAuthenticated: !!isSignedIn,
+        isLoaded: isFullyLoaded,
         login,
         logout,
         globalStoreId,

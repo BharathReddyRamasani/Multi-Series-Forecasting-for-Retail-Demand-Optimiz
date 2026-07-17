@@ -6,27 +6,41 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: demandai-api
+    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       - ENV=production
-      - CORS_ORIGINS=http://localhost:8000,http://localhost:3000,http://127.0.0.1:3000
-      - WORKERS=2
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - WORKERS=${WORKERS:-4}
+      - HOST=0.0.0.0
+      - PORT=8000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       - ./models:/app/models:ro
       - ./backend/logs:/app/backend/logs
+      - ./data:/app/data:rw
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
-          cpus: "2"
+          cpus: "2.0"
           memory: 2G
         reservations:
-          cpus: "1"
-          memory: 1G
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  default:
+    name: demandai_network
+    driver: bridge

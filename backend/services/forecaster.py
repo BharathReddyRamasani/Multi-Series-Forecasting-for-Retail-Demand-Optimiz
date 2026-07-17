@@ -76,39 +76,40 @@ class ForecastingService:
                 "training_date": datetime.now().strftime("%Y-%m-%d"),
                 "dataset_version": "v2",
                 "random_seed": params.get("random_state", 42),
-                "feature_count": 74,
+                "feature_count": len(FEATURE_COLUMNS),
                 "cv_performance": {
-                    "mean_rmse": 7.0,
-                    "mean_mae": 5.5,
-                    "mean_mape": 13.0,
-                    "mean_smape": 12.5
+                    "mean_rmse": self.metrics.get("rmse", 0.0),
+                    "mean_mae": self.metrics.get("mae", 0.0),
+                    "mean_mape": self.metrics.get("mape", 0.0),
+                    "mean_smape": self.metrics.get("smape", 0.0),
                 }
             }
         except Exception as e:
             logger.warning("Failed to load metadata: %s", e)
             self.metadata = {}
 
-        # Load metrics
+        # Load metrics — start from CSV (honest test metrics); only keep fields
+        # the CSV does not provide (median_ae/mbe/timing) as operational defaults.
         self.metrics = {
-            "rmse": 7.31,
-            "mae": 5.62,
-            "r2": 0.93,
+            "rmse": 0.0,
+            "mae": 0.0,
+            "r2": 0.0,
+            "mape": 0.0,
+            "smape": 0.0,
+            "wape": 0.0,
             "median_ae": 4.5,
             "mbe": 0.1,
-            "wape": 13.4,
             "training_time_sec": 45.2,
-            "inference_latency_ms": 0.15
+            "inference_latency_ms": 0.15,
         }
-        
+
         try:
             metrics_df = pd.read_csv(lgb_dir / "lightgbm_metrics.csv")
             for _, row in metrics_df.iterrows():
                 metric = row["Metric"].lower()
                 val = float(row["Value"])
-                if "rmse" in metric: self.metrics["rmse"] = val
-                elif "mae" in metric: self.metrics["mae"] = val
-                elif "r2" in metric: self.metrics["r2"] = val
-                elif "mape" in metric: self.metrics["wape"] = val
+                if metric in self.metrics:
+                    self.metrics[metric] = val
         except Exception as e:
             logger.warning("Failed to load metrics CSV: %s", e)
 
@@ -518,3 +519,61 @@ class ForecastingService:
             "items":  items,
             "combinations": len(stores) * len(items),
         }
+
+    def monthly_backtest(
+        self, store: int, item: int, year: int = 2022, model_type: str = "lightgbm"
+    ) -> List[Dict]:
+        """Real per-month backtest RMSE for a store-item over a calendar year.
+
+        For each month we forecast the next 30 days from the first of the month
+        and compare against the actual sales — no synthetic/random data.
+        """
+        from datetime import datetime
+        import numpy as np
+
+        months = []
+        for m in range(1, 13):
+            start = datetime(year, m, 1)
+            end = datetime(year, m, 1) + pd.Timedelta(days=30)
+            history = self._get_history(store, item, start)
+            try:
+                preds = self.forecast(
+                    store, item, 30, model_type=model_type,
+                    start_date=start.strftime("%Y-%m-%d"),
+                )
+            except Exception:
+                continue
+            actual_rows = self._get_history_window(store, item, start, end)
+            if actual_rows is None or len(actual_rows) == 0:
+                continue
+            actual = actual_rows["sales"].values[:30]
+            pred = np.array([p["point"] for p in preds[: len(actual)]])
+            if len(pred) == 0:
+                continue
+            rmse = float(np.sqrt(np.mean((actual - pred) ** 2)))
+            months.append({"month": start.strftime("%b"), "rmse": round(rmse, 2)})
+        return months
+
+    def _get_history_window(
+        self, store: int, item: int, start: "pd.Timestamp", end: "pd.Timestamp"
+    ) -> Optional[pd.DataFrame]:
+        """Fetch actual sales for a store-item within [start, end]."""
+        try:
+            from database import get_db_connection
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT date, store, item, sales FROM sales "
+                "WHERE store=? AND item=? AND date >= ? AND date <= ? ORDER BY date",
+                (store, item, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")),
+            )
+            rows = cur.fetchall()
+            conn.close()
+            if not rows:
+                return None
+            df = pd.DataFrame([dict(r) for r in rows])
+            df["date"] = pd.to_datetime(df["date"])
+            return df
+        except Exception as e:
+            logger.warning("History window fetch failed: %s", e)
+            return None
