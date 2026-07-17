@@ -13,7 +13,8 @@ from typing import Dict, Any
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI, Request, Response, HTTPException, Depends
+from datetime import datetime, timedelta
+from fastapi import FastAPI, Request, Response, HTTPException, Depends, status, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -24,7 +25,7 @@ from starlette.types import ASGIApp
 
 # Import routers and services
 try:
-    from routers import forecast, analytics, health, business, dashboard, data, history, model_perf, reports, explain
+    from routers import forecast, analytics, health, business, dashboard, data, history, model_perf, reports, explain, auth
     from services.forecaster import ForecastingService
     from database import init_db
     from auth import (
@@ -34,6 +35,11 @@ try:
         get_current_active_user,
         get_current_admin_user,
         get_current_analyst_user,
+        get_current_user,
+        get_user,
+        verify_token,
+        SECRET_KEY,
+        ALGORITHM,
         User,
         Token
     )
@@ -130,6 +136,27 @@ logger = structlog.get_logger()
 security = HTTPBearer(auto_error=False)
 
 
+# Authentication dependency reused by protected routers
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> User:
+    """Get the current authenticated user from JWT token."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        token = credentials.credentials
+        token_data = verify_token(token)
+        user = get_user(token_data.username)
+        if user is None:
+            raise credentials_exception
+        return User(**user.dict())
+    except Exception:
+        raise credentials_exception
+
+
 # Middleware for request ID and timing
 class RequestIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -216,58 +243,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Authentication dependency (now using proper auth from auth module)
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> User:
-    """Get the current authenticated user from JWT token."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        token = credentials.credentials
-        token_data = verify_token(token)
-        user = get_user(token_data.username)
-        if user is None:
-            raise credentials_exception
-        return User(**user.dict())
-    except Exception:
-        raise credentials_exception
-
-
-# Login helper function
-async def login_for_access_token(form_data: dict):
-    """Handle user login and return access tokens."""
-    username = form_data.get("username")
-    password = form_data.get("password")
-
-    user = authenticate_user(username, password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")))
-    access_token = create_access_token(
-        data={"sub": user.username, "user_id": user.username, "roles": user.roles},
-        expires_delta=access_token_expires
-    )
-    refresh_token = create_refresh_token(
-        data={"sub": user.username, "user_id": user.username}
-    )
-
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
-
-
 # Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -343,7 +318,7 @@ if os.getenv("ENV", "development") == "production":
 # CORS middleware - more secure in production
 cors_origins = os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000"
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,http://localhost:5173"
 ).split(",")
 
 app.add_middleware(
@@ -363,65 +338,30 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Include routers (only if loaded successfully)
 if routers_loaded:
+    # Public routers
     app.include_router(health.router, prefix="/api", tags=["Health"])
-    app.include_router(forecast.router, prefix="/api", tags=["Forecast"])
-    app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
-    app.include_router(business.router, prefix="/api/business", tags=["Business"])
-    app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
-    app.include_router(data.router, prefix="/api/data", tags=["Data"])
-    app.include_router(history.router, prefix="/api/history", tags=["History"])
-    app.include_router(model_perf.router, prefix="/api/model-performance", tags=["Model Performance"])
-    app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
-    app.include_router(explain.router, prefix="", tags=["Explain"])
+    app.include_router(auth.router, tags=["Authentication"])
 
-    # Auth routes
-    from fastapi import Form
-
-    @app.post("/api/auth/login", response_model=Token, tags=["Authentication"])
-    async def login(username: str = Form(...), password: str = Form(...)):
-        """Login endpoint to get access token."""
-        return await login_for_access_token({"username": username, "password": password})
-
-    @app.post("/api/auth/refresh", response_model=Token, tags=["Authentication"])
-    async def refresh_token(refresh_token: str = Form(...)):
-        """Refresh access token using refresh token."""
-        try:
-            payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-            username: str = payload.get("sub")
-            if username is None:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid refresh token",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-            user = get_user(username)
-            if user is None:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="User not found",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-
-            access_token_expires = timedelta(minutes=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")))
-            access_token = create_access_token(
-                data={"sub": user.username, "user_id": user.username, "roles": user.roles},
-                expires_delta=access_token_expires
-            )
-            new_refresh_token = create_refresh_token(
-                data={"sub": user.username, "user_id": user.username}
-            )
-
-            return {
-                "access_token": access_token,
-                "refresh_token": new_refresh_token,
-                "token_type": "bearer"
-            }
-        except JWTError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    # Protected routers — require a valid JWT access token.
+    _protected = Depends(get_current_active_user)
+    app.include_router(forecast.router, prefix="/api", tags=["Forecast"],
+                       dependencies=[_protected])
+    app.include_router(analytics.router, prefix="/api", tags=["Analytics"],
+                       dependencies=[_protected])
+    app.include_router(business.router, prefix="/api/business", tags=["Business"],
+                       dependencies=[_protected])
+    app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"],
+                       dependencies=[_protected])
+    app.include_router(data.router, prefix="/api/data", tags=["Data"],
+                       dependencies=[_protected])
+    app.include_router(history.router, prefix="/api/history", tags=["History"],
+                       dependencies=[_protected])
+    app.include_router(model_perf.router, prefix="/api/model-performance",
+                       tags=["Model Performance"], dependencies=[_protected])
+    app.include_router(reports.router, prefix="/api/reports", tags=["Reports"],
+                       dependencies=[_protected])
+    app.include_router(explain.router, prefix="", tags=["Explain"],
+                       dependencies=[_protected])
 else:
     # Error handling if routers failed to load
     @app.exception_handler(Exception)

@@ -7,23 +7,7 @@ import { AuthProvider } from './context/AuthContext'
 import App from './App'
 import './index.css'
 
-import { ClerkProvider } from '@clerk/clerk-react'
 
-declare global {
-  interface ImportMetaEnv {
-    readonly VITE_CLERK_PUBLISHABLE_KEY: string
-  }
-  interface ImportMeta {
-    readonly env: ImportMetaEnv
-  }
-}
-
-// Import your publishable key
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-
-if (!PUBLISHABLE_KEY) {
-  throw new Error("Missing Publishable Key")
-}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,12 +22,11 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -56,8 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             },
           }}
         />
-        </BrowserRouter>
-      </QueryClientProvider>
-    </ClerkProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   </React.StrictMode>,
 )

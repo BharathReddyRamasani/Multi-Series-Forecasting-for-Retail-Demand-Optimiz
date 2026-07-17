@@ -1,10 +1,37 @@
 import axios from 'axios'
 
+const TOKEN_KEY = 'demandai_token'
+
 const api = axios.create({
   baseURL: '/api',
   timeout: 60_000,
   headers: { 'Content-Type': 'application/json' },
 })
+
+// Attach the JWT bearer token (if present) to every request.
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (token) {
+    config.headers = config.headers ?? {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// On 401, clear the stored token so the app drops back to the login screen.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem(TOKEN_KEY)
+    }
+    return Promise.reject(error)
+  },
+)
+
+export const getToken = () => localStorage.getItem(TOKEN_KEY)
+export const setToken = (t: string) => localStorage.setItem(TOKEN_KEY, t)
+export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -209,6 +236,28 @@ export const apiClient = {
   health: () =>
     api.get<HealthResponse>('/health').then(r => r.data),
 
+  // ── Auth ──
+  login: (username: string, password: string) => {
+    const form = new URLSearchParams()
+    form.append('username', username)
+    form.append('password', password)
+    return api
+      .post<{ access_token: string; refresh_token: string; token_type: string }>(
+        '/auth/login',
+        form.toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      )
+      .then(r => r.data)
+  },
+
+  register: (username: string, password: string, email?: string, full_name?: string) =>
+    api
+      .post('/auth/register', { username, password, email, full_name })
+      .then(r => r.data),
+
+  me: () =>
+    api.get('/auth/me').then(r => r.data),
+
   forecast: (req: ForecastRequest) =>
     api.post<ForecastResponse>('/forecast', req).then(r => r.data),
     
@@ -258,7 +307,7 @@ export const apiClient = {
   },
 
   getModelPerformance: () =>
-    api.get('/model-performance').then(r => r.data),
+    api.get('/model-performance/').then(r => r.data),
 
   getModelFeatureImportance: (model = 'lightgbm') =>
     api.get<FeatureImportanceItem[]>(`/model-performance/importance?model=${model}`).then(r => r.data),

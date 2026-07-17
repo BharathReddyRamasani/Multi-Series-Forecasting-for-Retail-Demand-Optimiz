@@ -1,9 +1,8 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, TrendingUp, Cpu, Network, Store, Database, History, FileText, Package, BarChart2, Settings } from 'lucide-react'
+import { LayoutDashboard, TrendingUp, Cpu, Network, Store, Database, History, FileText, Package, BarChart2, Settings, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
-import { UserButton } from '@clerk/clerk-react'
 
 export default function Sidebar() {
   const { globalStoreId, setGlobalStoreId, logout, user } = useAuth()
@@ -78,8 +77,19 @@ export default function Sidebar() {
 
       {/* ── User + Sign Out ───────────────────────────────────── */}
       <div style={{ marginTop: 'auto', paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', padding: '10px 10px', marginBottom: 6 }}>
-          <UserButton showName={true} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px', marginBottom: 6 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--blue), var(--purple))', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 13 }}>
+            {(user?.username || 'U').charAt(0).toUpperCase()}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: 'var(--tx-1)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {user?.full_name || user?.username || 'Guest'}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--tx-3)' }}>{(user?.roles || []).join(', ')}</div>
+          </div>
+          <button className="icon-btn" title="Sign out" onClick={logout} style={{ background: 'transparent', border: 'none', color: 'var(--tx-3)', cursor: 'pointer' }}>
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </motion.div>

@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { TrendingUp, Activity, ShieldCheck } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { SignUp } from '@clerk/clerk-react'
+import { apiClient } from '../api/client'
+import { toast } from 'react-hot-toast'
 
 const staggerContainer = {
   hidden: { opacity: 0 },
@@ -14,6 +16,27 @@ const itemFade = {
 }
 
 export default function Register() {
+  const navigate = useNavigate()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await apiClient.register(username, password, email || undefined, fullName || undefined)
+      toast.success('Account created — please sign in')
+      navigate('/login')
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || 'Registration failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="auth-split">
       {/* Left Column: Form */}
@@ -26,10 +49,16 @@ export default function Register() {
           <motion.h1 variants={itemFade} style={{ fontSize: 32, fontWeight: 800, color: 'var(--t-primary)', marginBottom: 8 }}>Create Account</motion.h1>
           <motion.p variants={itemFade} style={{ color: 'var(--t-secondary)', fontSize: 15, marginBottom: 40 }}>Join DemandAI and optimize your store inventory.</motion.p>
 
-          <motion.div variants={itemFade} style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
-            <SignUp routing="path" path="/register" signInUrl="/login" />
-          </motion.div>
-          
+          <motion.form variants={itemFade} onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <input className="input" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+            <input className="input" type="email" placeholder="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input className="input" placeholder="Full name (optional)" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            <input className="input" type="password" placeholder="Password (min 6 chars)" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <button className="btn btn-blue w-full" type="submit" disabled={loading}>
+              {loading ? <div className="spinner" /> : 'Create account'}
+            </button>
+          </motion.form>
+
           <motion.p variants={itemFade} style={{ marginTop: 32, fontSize: 14, color: 'var(--t-muted)', textAlign: 'center' }}>
             Already have an account? <Link to="/login" style={{ color: 'var(--t-primary)', fontWeight: 600 }}>Sign In</Link>
           </motion.p>

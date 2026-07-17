@@ -1,17 +1,20 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { apiClient, getToken, setToken, clearToken } from '../api/client'
 
 interface User {
-  name: string
-  email: string
-  role: string
+  username: string
+  email?: string | null
+  full_name?: string | null
+  roles: string[]
+  disabled?: boolean
 }
 
 interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoaded: boolean
-  login: () => void
+  login: (username: string, password: string) => Promise<void>
   logout: () => void
   globalStoreId: number
   setGlobalStoreId: (storeId: number) => void
@@ -19,36 +22,60 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-import { useAuth as useClerkAuth, useUser as useClerkUser, useClerk } from '@clerk/clerk-react'
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { isSignedIn, isLoaded, signOut } = useClerkAuth()
-  const { user: clerkUser, isLoaded: isUserLoaded } = useClerkUser()
-  const clerk = useClerk()
-  
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
   const [globalStoreId, setGlobalStoreId] = useState<number>(1)
   const navigate = useNavigate()
 
-  const login = () => {
-    clerk.openSignIn()
+  // On mount, if we have a token, validate it by fetching the current user.
+  useEffect(() => {
+    const token = getToken()
+    if (!token) {
+      setIsLoaded(true)
+      return
+    }
+    apiClient
+      .me()
+      .then((u) => setUser(u as User))
+      .catch(() => clearToken())
+      .finally(() => setIsLoaded(true))
+  }, [])
+
+  const login = async (username: string, password: string) => {
+    const res = await apiClient.login(username, password)
+    setToken(res.access_token)
+    const me = await apiClient.me()
+    setUser(me as User)
   }
 
   const logout = () => {
-    signOut()
+    clearToken()
+    setUser(null)
     navigate('/landing')
   }
 
-  const mappedUser = clerkUser ? {
-    name: clerkUser.fullName || clerkUser.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User',
-    email: clerkUser.primaryEmailAddress?.emailAddress || '',
-    role: 'Store Manager',
-  } : null
-
-  const isFullyLoaded = isLoaded && isUserLoaded
-  const isAuthenticated = isFullyLoaded && isSignedIn
+  const mappedUser: User | null = user
+    ? {
+        username: user.username,
+        email: user.email,
+        full_name: user.full_name,
+        roles: user.roles ?? [],
+      }
+    : null
 
   return (
-    <AuthContext.Provider value={{ user: mappedUser, isAuthenticated: !!isAuthenticated, isLoaded: isFullyLoaded, login, logout, globalStoreId, setGlobalStoreId }}>
+    <AuthContext.Provider
+      value={{
+        user: mappedUser,
+        isAuthenticated: !!mappedUser,
+        isLoaded,
+        login,
+        logout,
+        globalStoreId,
+        setGlobalStoreId,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
