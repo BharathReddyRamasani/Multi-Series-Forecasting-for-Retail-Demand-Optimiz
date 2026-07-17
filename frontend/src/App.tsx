@@ -1,24 +1,25 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Suspense, lazy } from 'react'
 
 import Sidebar from './components/Sidebar'
-import Landing from './pages/Landing'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
-import ForecastPage from './pages/Forecast'
-import Analytics from './pages/Analytics'
-import ModelPerformance from './pages/ModelPerformance'
-import DatasetExplorer from './pages/DatasetExplorer'
-import DigitalTwin from './pages/DigitalTwin'
-import ForecastHistory from './pages/ForecastHistory'
-import DecisionIntelligence from './pages/DecisionIntelligence'
 
-import Stores from './pages/Stores'
-import Items from './pages/Items'
-import Inventory from './pages/Inventory'
-import Settings from './pages/Settings'
+const Landing = lazy(() => import('./pages/Landing'))
+const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const ForecastPage = lazy(() => import('./pages/Forecast'))
+const Analytics = lazy(() => import('./pages/Analytics'))
+const ModelPerformance = lazy(() => import('./pages/ModelPerformance'))
+const DatasetExplorer = lazy(() => import('./pages/DatasetExplorer'))
+const DigitalTwin = lazy(() => import('./pages/DigitalTwin'))
+const ForecastHistory = lazy(() => import('./pages/ForecastHistory'))
+const DecisionIntelligence = lazy(() => import('./pages/DecisionIntelligence'))
+const Stores = lazy(() => import('./pages/Stores'))
+const Items = lazy(() => import('./pages/Items'))
+const Inventory = lazy(() => import('./pages/Inventory'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoaded } = useAuth()
@@ -50,29 +51,31 @@ function AnimatedRoutes() {
   const location = useLocation()
   
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        {/* Public Routes */}
-        <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
-        <Route path="/login/*" element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register/*" element={<PublicRoute><Register /></PublicRoute>} />
+    <Suspense fallback={<div className="loading-center"><div className="spinner-lg" /></div>}>
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
+          {/* Public Routes */}
+          <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
+          <Route path="/login/*" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/register/*" element={<PublicRoute><Register /></PublicRoute>} />
 
-        {/* Protected Routes */}
-        <Route path="/" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Dashboard /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/forecast" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ForecastPage /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/analytics" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Analytics /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/model-performance" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ModelPerformance /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/dataset" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><DatasetExplorer /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/history" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ForecastHistory /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/decision-intelligence" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><DecisionIntelligence /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/stores" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Stores /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/items" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Items /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Inventory /></PageWrapper></div></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Settings /></PageWrapper></div></ProtectedRoute>} />
-        
-        <Route path="*" element={<Navigate to="/landing" replace />} />
-      </Routes>
-    </AnimatePresence>
+          {/* Protected Routes */}
+          <Route path="/" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Dashboard /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/forecast" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ForecastPage /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Analytics /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/model-performance" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ModelPerformance /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/dataset" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><DatasetExplorer /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ForecastHistory /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/decision-intelligence" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><DecisionIntelligence /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/stores" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Stores /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/items" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Items /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Inventory /></PageWrapper></div></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Settings /></PageWrapper></div></ProtectedRoute>} />
+
+          <Route path="*" element={<Navigate to="/landing" replace />} />
+        </Routes>
+      </AnimatePresence>
+    </Suspense>
   )
 }
 

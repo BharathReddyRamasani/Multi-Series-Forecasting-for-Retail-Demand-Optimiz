@@ -17,6 +17,7 @@ from services.feature_engine import (
     engineer_features,
     FEATURE_COLUMNS,
 )
+from services.cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,9 @@ class ForecastingService:
         self.metrics:  Dict = {}
         self.feature_importance: List[Dict] = []
         self._custom_data: Optional[pd.DataFrame] = None
+        self._forecast_cache = TTLCache(default_ttl=300)
+        self._explain_cache = TTLCache(default_ttl=600)
+        self._history_cache: Dict[str, pd.DataFrame] = {}
 
     def load_models(self):
         lgb_dir = MODELS_DIR / "lightgbm"
@@ -130,6 +134,48 @@ class ForecastingService:
         except Exception as e:
             logger.warning("Failed to load XGBoost feature importance: %s", e)
 
+        # ── RandomForest ──
+        rf_dir = MODELS_DIR / "randomforest"
+        self.model_rf = None
+        self.rf_features = []
+        self.rf_metrics = {}
+        self.feature_importance_rf = []
+        rf_model_path = rf_dir / "randomforest_model.pkl"
+        try:
+            if rf_model_path.exists():
+                self.model_rf = joblib.load(rf_model_path)
+                logger.info("Loaded RandomForest from %s", rf_model_path.name)
+            else:
+                logger.warning("RandomForest not found at %s", rf_model_path)
+        except Exception as e:
+            logger.warning("RandomForest failed to load: %s", e)
+
+        try:
+            self.rf_features = joblib.load(rf_dir / "randomforest_features.pkl")
+            logger.info("RandomForest features: %d", len(self.rf_features))
+        except Exception as e:
+            logger.warning("Failed to load RandomForest features: %s", e)
+
+        try:
+            mdf = pd.read_csv(rf_dir / "randomforest_metrics.csv")
+            for _, row in mdf.iterrows():
+                self.rf_metrics[row["Metric"].lower()] = float(row["Value"])
+        except Exception as e:
+            logger.warning("Failed to load RandomForest metrics: %s", e)
+
+        try:
+            with open(rf_dir / "randomforest_feature_importance.csv", newline="") as f:
+                reader = csv.DictReader(f)
+                self.feature_importance_rf = [
+                    {"feature": row["Feature"], "importance": float(row["Importance"])}
+                    for row in reader if row["Feature"]
+                ]
+            self.feature_importance_rf.sort(key=lambda x: x["importance"], reverse=True)
+            for i, item in enumerate(self.feature_importance_rf):
+                item["rank"] = i + 1
+        except Exception as e:
+            logger.warning("Failed to load RF feature importance: %s", e)
+
     @property
     def is_loaded(self) -> bool:
         return self.model_point is not None
@@ -138,6 +184,13 @@ class ForecastingService:
         self._custom_data = df
 
     def _get_history(self, store: int, item: int, start_date: pd.Timestamp) -> pd.DataFrame:
+        cache_key = f"{store}_{item}"
+        cached = self._history_cache.get(cache_key)
+        if cached is not None:
+            cutoff = start_date - pd.Timedelta(days=1)
+            mask = cached["date"] < cutoff
+            if mask.any():
+                return cached[mask].copy()
         if self._custom_data is not None:
             mask = (self._custom_data["store"] == store) & (self._custom_data["item"] == item)
             subset = self._custom_data[mask].copy()
@@ -145,8 +198,6 @@ class ForecastingService:
                 subset = subset[subset["date"] < start_date]
                 if not subset.empty:
                     return subset
-                    
-        # Try fetching real history from database
         try:
             from database import get_db_connection
             conn = get_db_connection()
@@ -155,6 +206,7 @@ class ForecastingService:
             conn.close()
             if not df.empty:
                 df["date"] = pd.to_datetime(df["date"])
+                self._history_cache[cache_key] = df.copy()
                 return df
         except Exception as e:
             print(f"Warning: Failed to fetch history from database: {e}")
@@ -199,6 +251,8 @@ class ForecastingService:
         
         if model_type == "xgboost":
             cols = ['store', 'item', 'year', 'month', 'day', 'dayofweek', 'weekofyear', 'quarter', 'is_weekend', 'dayofyear', 'lag_1', 'lag_7', 'lag_14', 'lag_28', 'lag_30', 'lag_90', 'rolling_std_7', 'rolling_std_14', 'rolling_std_30', 'rolling_std_90', 'rolling_median_7', 'rolling_median_14', 'rolling_median_30', 'ema_095', 'ema_09', 'ema_08', 'ema_07', 'expanding_mean']
+        elif model_type == "randomforest" and self.rf_features:
+            cols = self.rf_features
         else:
             cols = ['expanding_mean', 'lag_90', 'rolling_std_7', 'lag_7', 'lag_14', 'lag_28', 'rolling_mean_7', 'lag_30', 'dayofyear', 'rolling_std_14', 'rolling_mean_90', 'rolling_std_30', 'day', 'rolling_std_90', 'rolling_mean_14', 'rolling_mean_30', 'ema_07', 'item', 'lag_1', 'dayofweek', 'ema_08', 'month', 'ema_095', 'ema_09', 'weekofyear', 'year', 'store', 'is_weekend', 'quarter']
             
@@ -228,6 +282,14 @@ class ForecastingService:
         high = np.clip(point * 1.15, 0, None)
         return point, low, high
 
+    def _forecast_rf(self, X: pd.DataFrame, horizon: int) -> tuple:
+        if self.model_rf is None:
+            raise RuntimeError("RandomForest model is not loaded.")
+        point = np.clip(self.model_rf.predict(X), 0, None)
+        low = np.clip(point * 0.85, 0, None)
+        high = np.clip(point * 1.15, 0, None)
+        return point, low, high
+
     def _forecast_arima(self, history: pd.DataFrame, horizon: int, order: tuple) -> tuple:
         """Fit Statsmodels ARIMA on the fly."""
         y = history["sales"].values[-180:] # Use last 180 days max
@@ -249,48 +311,6 @@ class ForecastingService:
             base_point = np.mean(y)
             return np.full(horizon, base_point), np.full(horizon, base_point*0.8), np.full(horizon, base_point*1.2)
 
-    def _forecast_gru(self, history: pd.DataFrame, X_future: np.ndarray, horizon: int) -> tuple:
-        """Load and run inference using the pre-trained Keras model."""
-        import tensorflow as tf
-        model_path = MODELS_DIR / "retail_gru_model (1).h5"
-        scaler_path = MODELS_DIR / "gru_scaler.joblib"
-        
-        if not model_path.exists():
-            model_path = MODELS_DIR / "retail_gru_model.h5"
-            if not model_path.exists():
-                raise FileNotFoundError("retail_gru_model.h5 not found in models directory.")
-            
-        try:
-            model = tf.keras.models.load_model(str(model_path), compile=False)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load Keras model. Error: {e}")
-
-        # Load scaler if it exists
-        if scaler_path.exists():
-            scaler = joblib.load(scaler_path)
-            try:
-                X_scaled = scaler.transform(X_future)
-        except Exception:
-            X_scaled = X_future
-        else:
-            X_scaled = X_future
-            
-        # Keras typically expects (batch, seq, features). For stateless point predictions, seq=1.
-        X_t = np.expand_dims(X_scaled, axis=1) # Shape: (horizon, 1, features)
-        
-        try:
-            preds = model.predict(X_t, verbose=0).squeeze()
-        except Exception:
-            # Try without seq dim
-            preds = model.predict(X_scaled, verbose=0).squeeze()
-
-        point = np.clip(preds, 0, None)
-        low = np.maximum(0, point * 0.85)
-        high = point * 1.15
-        
-        return point, low, high
-
-
     # ── Main Entry ─────────────────────────────────────────────────────────
 
     def forecast(
@@ -306,10 +326,17 @@ class ForecastingService:
         if not self.is_loaded:
             raise RuntimeError("Models are not loaded.")
 
-        # Fallback to LightGBM if XGBoost isn't available
         if model_type == "xgboost" and not (hasattr(self, 'model_xgb') and self.model_xgb is not None):
-            print("Warning: XGBoost not loaded, falling back to LightGBM")
+            logger.warning("XGBoost not available, falling back to LightGBM")
             model_type = "lightgbm"
+        elif model_type == "randomforest" and not (hasattr(self, 'model_rf') and self.model_rf is not None):
+            logger.warning("RandomForest not available, falling back to LightGBM")
+            model_type = "lightgbm"
+
+        if not scenario_overrides:
+            cached = self._forecast_cache.get(store, item, horizon, model_type, start_date)
+            if cached is not None:
+                return cached
 
         start = pd.Timestamp(start_date) if start_date else pd.Timestamp.today().normalize()
         forecast_dates = pd.date_range(start=start, periods=horizon, freq="D")
@@ -337,12 +364,12 @@ class ForecastingService:
         
         if model_type == "xgboost":
             preds_point, preds_low, preds_high = self._forecast_xgboost(history, X_future_df, horizon)
+        elif model_type == "randomforest":
+            preds_point, preds_low, preds_high = self._forecast_rf(X_future_df, horizon)
         elif model_type == "sarima":
-            preds_point, preds_low, preds_high = self._forecast_arima(history, horizon, order=(1, 1, 1)) # simplistic seasonal proxy
+            preds_point, preds_low, preds_high = self._forecast_arima(history, horizon, order=(1, 1, 1))
         elif model_type == "arma":
             preds_point, preds_low, preds_high = self._forecast_arima(history, horizon, order=(2, 0, 1))
-        elif model_type == "gru":
-            preds_point, preds_low, preds_high = self._forecast_gru(history, X_future_arr, horizon)
         else:
             preds_point, preds_low, preds_high = self._forecast_lightgbm(X_future_df, horizon)
 
@@ -362,6 +389,10 @@ class ForecastingService:
                     "upper_95":  round(float(max(preds_high[i], preds_point[i])), 2),
                 }
             )
+
+        if not scenario_overrides:
+            self._forecast_cache.set(results, 300, store, item, horizon, model_type, start_date)
+
         return results
 
     def explain(
@@ -375,21 +406,33 @@ class ForecastingService:
         if not self.is_loaded:
             raise RuntimeError("Models are not loaded.")
 
-        # Fallback to LightGBM if XGBoost isn't available
         if model_type == "xgboost" and not (hasattr(self, 'model_xgb') and self.model_xgb is not None):
-            print("Warning: XGBoost not loaded, falling back to LightGBM in explain()")
+            logger.warning("XGBoost not loaded, falling back to LightGBM in explain()")
             model_type = "lightgbm"
+        elif model_type == "randomforest" and not (hasattr(self, 'model_rf') and self.model_rf is not None):
+            logger.warning("RandomForest not loaded, falling back to LightGBM in explain()")
+            model_type = "lightgbm"
+
+        cached = self._explain_cache.get(store, item, forecast_date, model_type)
+        if cached is not None:
+            return cached
 
         target_date = pd.Timestamp(forecast_date)
         history = self._get_history(store, item, target_date)
-        
-        # We need to build features for just this one date to explain it
+
         forecast_dates = pd.date_range(start=target_date, periods=1, freq="D")
         feat_df = engineer_features(history, forecast_dates, store, item)
         X_explain_df = self._prepare_features(feat_df, store, item, model_type)
 
-        active_model = self.model_xgb if model_type == "xgboost" and hasattr(self, 'model_xgb') and self.model_xgb else self.model_point
-        active_fi = self.feature_importance_xgb if model_type == "xgboost" and hasattr(self, 'feature_importance_xgb') and self.feature_importance_xgb else self.feature_importance
+        if model_type == "xgboost" and hasattr(self, 'model_xgb') and self.model_xgb is not None:
+            active_model = self.model_xgb
+            active_fi = self.feature_importance_xgb
+        elif model_type == "randomforest" and hasattr(self, 'model_rf') and self.model_rf is not None:
+            active_model = self.model_rf
+            active_fi = self.feature_importance_rf
+        else:
+            active_model = self.model_point
+            active_fi = self.feature_importance
 
         prediction = float(np.clip(active_model.predict(X_explain_df), 0, None)[0])
         
@@ -432,12 +475,14 @@ class ForecastingService:
             
         insight_text += "Recommendation: Maintain safety stock and monitor closely."
 
-        return {
+        result = {
             "prediction": round(prediction, 1),
             "base_value": round(base_value, 1),
-            "shap_values": shap_list[:10], # Top 10 factors
+            "shap_values": shap_list[:10],
             "insight_text": insight_text
         }
+        self._explain_cache.set(result, 600, store, item, forecast_date, model_type)
+        return result
 
     def batch_forecast(
         self,

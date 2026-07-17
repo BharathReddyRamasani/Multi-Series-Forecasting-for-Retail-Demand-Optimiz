@@ -28,8 +28,10 @@ if (!PUBLISHABLE_KEY) {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
-      retry: 2,
+      staleTime: 60_000,
+      gcTime: 300_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
     },
   },
 })

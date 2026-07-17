@@ -1,10 +1,7 @@
-"""Feature engineering pipeline — reproduces all 74 training features."""
 import numpy as np
 import pandas as pd
 from typing import List
 
-
-# ── Indian public holidays (simplified, used by training) ──────────────────
 HOLIDAYS = [
     "2013-01-26", "2013-08-15", "2013-10-02", "2013-10-14", "2013-11-02",
     "2014-01-26", "2014-08-15", "2014-10-02", "2014-10-03", "2014-10-22",
@@ -18,135 +15,72 @@ HOLIDAYS = [
     "2022-01-26", "2022-08-15", "2022-10-02", "2022-10-05", "2022-10-24",
     "2023-01-26", "2023-08-15", "2023-10-02", "2023-10-24", "2023-11-12",
 ]
-
 HOLIDAY_DATES = pd.to_datetime(HOLIDAYS)
 
-
-def _add_date_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Calendar and cyclical date features."""
-    dt = df["date"]
-    df["year"]         = dt.dt.year
-    df["month"]        = dt.dt.month
-    df["day"]          = dt.dt.day
-    df["day_of_week"]  = dt.dt.dayofweek          # 0=Mon
-    df["day_of_year"]  = dt.dt.dayofyear
-    df["week"]         = dt.dt.isocalendar().week.astype(int)
-    df["quarter"]      = dt.dt.quarter
-    df["weekend"]      = (df["day_of_week"] >= 5).astype(int)
-    df["month_start"]  = dt.dt.is_month_start.astype(int)
-    df["month_end"]    = dt.dt.is_month_end.astype(int)
-    df["quarter_start"] = dt.dt.is_quarter_start.astype(int)
-    df["quarter_end"]  = dt.dt.is_quarter_end.astype(int)
-
-    # Cyclical encodings
-    df["day_of_week_sin"] = np.sin(2 * np.pi * df["day_of_week"] / 7)
-    df["day_of_week_cos"] = np.cos(2 * np.pi * df["day_of_week"] / 7)
-    df["day_of_year_sin"] = np.sin(2 * np.pi * df["day_of_year"] / 365)
-    df["day_of_year_cos"] = np.cos(2 * np.pi * df["day_of_year"] / 365)
-    df["month_sin"]    = np.sin(2 * np.pi * df["month"] / 12)
-    df["month_cos"]    = np.cos(2 * np.pi * df["month"] / 12)
-    df["week_sin"]     = np.sin(2 * np.pi * df["week"] / 52)
-    df["week_cos"]     = np.cos(2 * np.pi * df["week"] / 52)
-    return df
+DATE_FEATURE_COLS = [
+    "year", "month", "day", "day_of_week", "day_of_year", "week", "quarter",
+    "weekend", "month_start", "month_end", "quarter_start", "quarter_end",
+    "day_of_week_sin", "day_of_week_cos", "day_of_year_sin", "day_of_year_cos",
+    "month_sin", "month_cos", "week_sin", "week_cos",
+]
+HOLIDAY_FEATURE_COLS = [
+    "is_holiday", "days_to_holiday", "days_from_holiday", "festival_week", "long_weekend",
+]
+STATIC_FEATURE_COLS = DATE_FEATURE_COLS + HOLIDAY_FEATURE_COLS
 
 
-def _add_holiday_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Holiday proximity features."""
-    df["is_holiday"] = df["date"].isin(HOLIDAY_DATES).astype(int)
+def _compute_static_features(dates: pd.DatetimeIndex, store: int, item: int) -> pd.DataFrame:
+    n = len(dates)
+    out = pd.DataFrame(index=range(n))
+    out["date"] = dates
+    dt = dates
+    out["year"] = dt.year
+    out["month"] = dt.month
+    out["day"] = dt.day
+    out["day_of_week"] = dt.dayofweek
+    out["day_of_year"] = dt.dayofyear
+    out["week"] = dt.isocalendar().week.astype(int)
+    out["quarter"] = dt.quarter
+    out["weekend"] = (out["day_of_week"] >= 5).astype(int)
+    out["month_start"] = dt.is_month_start.astype(int)
+    out["month_end"] = dt.is_month_end.astype(int)
+    out["quarter_start"] = dt.is_quarter_start.astype(int)
+    out["quarter_end"] = dt.is_quarter_end.astype(int)
 
-    def days_to_next(d):
-        future = HOLIDAY_DATES[HOLIDAY_DATES >= d]
-        return (future.min() - d).days if len(future) > 0 else 365
+    dw = out["day_of_week"].values
+    dy = out["day_of_year"].values
+    mo = out["month"].values
+    wk = out["week"].values
+    out["day_of_week_sin"] = np.sin(2 * np.pi * dw / 7)
+    out["day_of_week_cos"] = np.cos(2 * np.pi * dw / 7)
+    out["day_of_year_sin"] = np.sin(2 * np.pi * dy / 365)
+    out["day_of_year_cos"] = np.cos(2 * np.pi * dy / 365)
+    out["month_sin"] = np.sin(2 * np.pi * mo / 12)
+    out["month_cos"] = np.cos(2 * np.pi * mo / 12)
+    out["week_sin"] = np.sin(2 * np.pi * wk / 52)
+    out["week_cos"] = np.cos(2 * np.pi * wk / 52)
 
-    def days_from_last(d):
-        past = HOLIDAY_DATES[HOLIDAY_DATES <= d]
-        return (d - past.max()).days if len(past) > 0 else 365
+    date_series = pd.Series(dates)
+    hday = HOLIDAY_DATES
+    out["is_holiday"] = date_series.isin(hday).astype(int)
+    date_np = date_series.values.astype("datetime64[D]")
+    hday_np = hday.values.astype("datetime64[D]")
+    delta = date_np[:, None] - hday_np[None, :]
+    delta_days = delta.astype(int)
+    future_mask = delta_days <= 0
+    past_mask = delta_days >= 0
+    future_days = np.where(future_mask, -delta_days, 9999)
+    past_days = np.where(past_mask, delta_days, 9999)
+    future_min = future_days.min(axis=1)
+    past_min = past_days.min(axis=1)
+    out["days_to_holiday"] = np.where(future_min < 9999, future_min, 365)
+    out["days_from_holiday"] = np.where(past_min < 9999, past_min, 365)
+    out["festival_week"] = ((out["days_to_holiday"] <= 7) | (out["days_from_holiday"] <= 7)).astype(int)
+    out["long_weekend"] = (((out["day_of_week"] == 4) | (out["day_of_week"] == 0)).astype(int) & out["is_holiday"])
 
-    df["days_to_holiday"]   = df["date"].apply(days_to_next)
-    df["days_from_holiday"] = df["date"].apply(days_from_last)
-
-    # Festival week: within 7 days of a major holiday
-    df["festival_week"] = (
-        (df["days_to_holiday"] <= 7) | (df["days_from_holiday"] <= 7)
-    ).astype(int)
-
-    # Long weekend: Friday or Monday adjacent to weekend
-    df["long_weekend"] = (
-        (df["day_of_week"] == 4) | (df["day_of_week"] == 0)
-    ).astype(int) & df["is_holiday"]
-
-    return df
-
-
-def _add_lag_features(df: pd.DataFrame, sales_col: str = "sales") -> pd.DataFrame:
-    """Lag features at standard offsets."""
-    lags = [1, 2, 3, 7, 14, 21, 28, 30, 60, 90, 180, 364]
-    for lag in lags:
-        df[f"sales_lag_{lag}"] = df[sales_col].shift(lag)
-    return df
-
-
-def _add_rolling_features(df: pd.DataFrame, sales_col: str = "sales") -> pd.DataFrame:
-    """Rolling window aggregates."""
-    windows = [7, 14, 28, 30, 60, 90]
-    for w in windows:
-        rolled = df[sales_col].shift(1).rolling(w, min_periods=1)
-        df[f"sales_roll_mean_{w}"]   = rolled.mean()
-        df[f"sales_roll_std_{w}"]    = rolled.std()
-        df[f"sales_roll_min_{w}"]    = rolled.min()
-        df[f"sales_roll_max_{w}"]    = rolled.max()
-        df[f"sales_roll_median_{w}"] = rolled.median()
-    return df
-
-
-def _add_ema_features(df: pd.DataFrame, sales_col: str = "sales") -> pd.DataFrame:
-    """Exponential moving averages."""
-    alphas = [0.5, 0.7, 0.8, 0.9, 0.95]
-    for alpha in alphas:
-        df[f"sales_ema_{alpha}"] = (
-            df[sales_col].shift(1).ewm(alpha=alpha, adjust=False).mean()
-        )
-    return df
+    return out
 
 
-def _add_growth_features(df: pd.DataFrame, sales_col: str = "sales") -> pd.DataFrame:
-    """Week-over-week and month-over-month growth rates."""
-    df["sales_weekly_growth"] = (
-        df[sales_col].shift(1) / (df[sales_col].shift(8) + 1e-6) - 1
-    )
-    df["sales_monthly_growth"] = (
-        df[sales_col].shift(1) / (df[sales_col].shift(31) + 1e-6) - 1
-    )
-    return df
-
-
-def _add_expanding_features(df: pd.DataFrame, sales_col: str = "sales") -> pd.DataFrame:
-    """Expanding (cumulative) statistics."""
-    shifted = df[sales_col].shift(1)
-    df["sales_expanding_mean"] = shifted.expanding(min_periods=1).mean()
-    df["sales_expanding_std"]  = shifted.expanding(min_periods=1).std()
-    return df
-
-
-def _add_store_item_stats(
-    df: pd.DataFrame,
-    store: int,
-    item: int,
-    sales_col: str = "sales",
-) -> pd.DataFrame:
-    """Static store/item aggregate features derived from history."""
-    series_mean = df[sales_col].mean()
-    df["store_item_avg_sales"]   = series_mean
-    df["store_avg_sales"]        = series_mean * np.random.uniform(0.9, 1.1)  # approx
-    df["item_avg_sales"]         = series_mean * np.random.uniform(0.9, 1.1)
-    df["item_sales_popularity"]  = series_mean / (series_mean + 1)
-    df["store_sales_trend"]      = (
-        df[sales_col].tail(30).mean() - df[sales_col].head(30).mean()
-    ) / (df[sales_col].head(30).mean() + 1e-6)
-    return df
-
-
-# ── The 74 feature columns expected by the model (in training order) ───────
 FEATURE_COLUMNS: List[str] = [
     "sales_weekly_growth", "sales_monthly_growth", "sales_roll_mean_7",
     "sales_roll_min_7", "sales_ema_0.5", "sales_lag_364", "day_of_week",
@@ -172,33 +106,60 @@ FEATURE_COLUMNS: List[str] = [
 
 
 def build_history_dataframe(
-    store: int,
-    item: int,
+    store: int, item: int,
     start_date: pd.Timestamp,
     n_history: int = 400,
 ) -> pd.DataFrame:
-    """
-    Build synthetic history that statistically mimics Kaggle's store-item dataset.
-    Used as warm-up buffer for lag/rolling features when no uploaded CSV is present.
-    """
     rng = np.random.default_rng(seed=store * 100 + item)
     dates = pd.date_range(end=start_date - pd.Timedelta(days=1), periods=n_history)
-
-    # Base level varies by store & item
-    base  = 30 + store * 2.5 + item * 0.8
+    base = 30 + store * 2.5 + item * 0.8
     trend = np.linspace(0, base * 0.05, n_history)
-
-    # Weekly + annual seasonality
-    dow    = np.array([d.dayofweek for d in dates])
-    doy    = np.array([d.dayofyear for d in dates])
+    dow = np.array([d.dayofweek for d in dates])
+    doy = np.array([d.dayofyear for d in dates])
     weekly = 4 * np.sin(2 * np.pi * dow / 7)
     annual = 5 * np.sin(2 * np.pi * doy / 365 - 1.2)
+    noise = rng.normal(0, 2, n_history)
+    sales = np.clip(base + trend + weekly + annual + noise, 1, None).round().astype(float)
+    return pd.DataFrame({"date": dates, "sales": sales, "store": store, "item": item})
 
-    noise  = rng.normal(0, 2, n_history)
-    sales  = np.clip(base + trend + weekly + annual + noise, 1, None).round().astype(float)
 
-    df = pd.DataFrame({"date": dates, "sales": sales, "store": store, "item": item})
-    return df
+def _add_sales_features(
+    history: pd.DataFrame, sales: np.ndarray
+) -> dict:
+    s = sales
+    result = {}
+    lags = [1, 2, 3, 7, 14, 21, 28, 30, 60, 90, 180, 364]
+    for lag in lags:
+        result[f"sales_lag_{lag}"] = s[-(1 + lag)] if len(s) > lag else s[0]
+
+    windows = [7, 14, 28, 30, 60, 90]
+    for w in windows:
+        seg = s[-w:] if len(s) >= w else s
+        result[f"sales_roll_mean_{w}"] = seg.mean()
+        result[f"sales_roll_std_{w}"] = seg.std()
+        result[f"sales_roll_min_{w}"] = seg.min()
+        result[f"sales_roll_max_{w}"] = seg.max()
+        result[f"sales_roll_median_{w}"] = np.median(seg)
+
+    alphas = [0.5, 0.7, 0.8, 0.9, 0.95]
+    for alpha in alphas:
+        ewm = pd.Series(s).ewm(alpha=alpha, adjust=False).mean().iloc[-1]
+        result[f"sales_ema_{alpha}"] = ewm
+
+    result["sales_weekly_growth"] = (s[-1] / (s[-8] + 1e-6) - 1) if len(s) > 8 else 0.0
+    result["sales_monthly_growth"] = (s[-1] / (s[-31] + 1e-6) - 1) if len(s) > 31 else 0.0
+    emean = np.mean(s)
+    result["sales_expanding_mean"] = emean
+    result["sales_expanding_std"] = np.std(s)
+    result["store_item_avg_sales"] = emean
+    result["store_avg_sales"] = emean * np.random.uniform(0.9, 1.1)
+    result["item_avg_sales"] = emean * np.random.uniform(0.9, 1.1)
+    result["item_sales_popularity"] = emean / (emean + 1)
+    result["store_sales_trend"] = (
+        (np.mean(s[-30:]) - np.mean(s[:30])) / (np.mean(s[:30]) + 1e-6)
+        if len(s) > 60 else 0.0
+    )
+    return result
 
 
 def engineer_features(
@@ -207,48 +168,14 @@ def engineer_features(
     store: int,
     item: int,
 ) -> pd.DataFrame:
-    """
-    Iteratively build feature rows for each forecast date using recursive
-    prediction (the previous step's point forecast fills the lag).
-    Returns a DataFrame with FEATURE_COLUMNS aligned to forecast_dates.
-    """
-    # We need to return feature frames for each forecast step
-    # We'll build them one by one, appending synthetic point to history
-    all_feature_rows = []
-    working = history_df.copy()
-
-    for fdate in forecast_dates:
-        # Append a placeholder row for the forecast date
-        new_row = pd.DataFrame(
-            {"date": [fdate], "sales": [np.nan], "store": [store], "item": [item]}
-        )
-        full = pd.concat([working, new_row], ignore_index=True)
-        full["date"] = pd.to_datetime(full["date"])
-        full = full.sort_values("date").reset_index(drop=True)
-
-        # Engineer all features on the full series
-        full = _add_date_features(full)
-        full = _add_holiday_features(full)
-        full = _add_lag_features(full)
-        full = _add_rolling_features(full)
-        full = _add_ema_features(full)
-        full = _add_growth_features(full)
-        full = _add_expanding_features(full)
-        full = _add_store_item_stats(full, store, item)
-
-        # Extract the last row (forecast date)
-        row = full.iloc[-1]
-        feat_dict = row.to_dict()
-        all_feature_rows.append(feat_dict)
-
-        # Fill NaN placeholder with rolling mean as synthetic "actual" for next step
-        fill_val = full["sales_roll_mean_7"].iloc[-1]
-        if pd.isna(fill_val):
-            fill_val = working["sales"].mean()
-        working = pd.concat(
-            [working, pd.DataFrame({"date": [fdate], "sales": [fill_val], "store": [store], "item": [item]})],
-            ignore_index=True,
-        )
-
-    feat_df = pd.DataFrame(all_feature_rows, index=forecast_dates)
-    return feat_df
+    static = _compute_static_features(forecast_dates, store, item)
+    sales_buffer = history_df["sales"].values.copy()
+    rows = []
+    for i in range(len(forecast_dates)):
+        sf = _add_sales_features(history_df, sales_buffer)
+        row = {k: static.loc[i, k] for k in STATIC_FEATURE_COLS}
+        row.update(sf)
+        rows.append(row)
+        fill_val = row.get("sales_roll_mean_7", np.mean(sales_buffer))
+        sales_buffer = np.append(sales_buffer, fill_val)
+    return pd.DataFrame(rows, index=forecast_dates)
