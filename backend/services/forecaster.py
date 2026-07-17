@@ -22,6 +22,22 @@ logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "v2"
 
+FEATURE_COLUMNS = [
+    "year","month","day","dayofweek","weekofyear","quarter","dayofyear",
+    "is_weekend","is_holiday","days_to_holiday","days_after_holiday",
+    "long_weekend","festival_week",
+    "lag_1","lag_7","lag_14","lag_28","lag_30","lag_60","lag_90","lag_180","lag_364",
+    "rolling_mean_7","rolling_mean_14","rolling_mean_28","rolling_mean_30","rolling_mean_60","rolling_mean_90",
+    "rolling_std_7","rolling_std_14","rolling_std_28","rolling_std_30","rolling_std_60","rolling_std_90",
+    "rolling_min_7","rolling_min_14","rolling_min_28","rolling_min_30",
+    "rolling_max_7","rolling_max_14","rolling_max_28","rolling_max_30",
+    "rolling_median_7","rolling_median_14","rolling_median_28","rolling_median_30","rolling_median_60","rolling_median_90",
+    "ema_05","ema_07","ema_08","ema_09","ema_095",
+    "expanding_mean","expanding_std","expanding_min","expanding_max",
+    "sales_weekly_growth","sales_monthly_growth",
+    "store","item","store_avg_sales","item_avg_sales","store_sales_trend"
+]
+
 class ForecastingService:
     """Orchestrates multi-model forecasting."""
 
@@ -32,6 +48,7 @@ class ForecastingService:
         self.metadata: Dict = {}
         self.metrics:  Dict = {}
         self.feature_importance: List[Dict] = []
+        self.lgb_features: List[str] = []
         self._custom_data: Optional[pd.DataFrame] = None
         self._forecast_cache = TTLCache(default_ttl=300)
         self._explain_cache = TTLCache(default_ttl=600)
@@ -46,6 +63,8 @@ class ForecastingService:
         # We no longer have distinct quantile models, so we'll simulate them dynamically in predict.
         self.model_low = None
         self.model_high = None
+
+        self.lgb_features = joblib.load(lgb_dir / "lightgbm_features.pkl")
 
         # Load metadata/params
         try:
@@ -358,7 +377,6 @@ class ForecastingService:
                     if "sales" in col or "mean" in col or "lag" in col:
                         feat_df[col] = feat_df[col] * 1.25 # 25% boost
         X_future_df = self._prepare_features(feat_df, store, item, model_type)
-        X_future_arr = feat_df[FEATURE_COLUMNS].values.astype(np.float32)
 
         if model_type == "xgboost":
             preds_point, preds_low, preds_high = self._forecast_xgboost(history, X_future_df, horizon)
