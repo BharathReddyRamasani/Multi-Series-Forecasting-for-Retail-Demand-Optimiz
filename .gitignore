@@ -40,3 +40,16 @@ models/**/*.bin
 *.log
 .DS_Store
 Thumbs.db
+
+# ── Backend generated static ──
+backend/static/
+
+# ── IDE / editor ──
+.vscode/
+.idea/
+
+# ── Lint caches ──
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

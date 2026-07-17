@@ -57,9 +57,16 @@ export default function ForecastPage() {
     },
     onSuccess: () => toast.success('Forecast generated successfully!'),
     onError: () => toast.error('Failed to generate forecast.')
-  })
+   })
 
-  // Also fetch XAI explanation for the first forecasted date
+  // Fetch model performance for telemetry (RMSE, MAPE, etc.)
+  const { data: modelPerf } = useQuery({
+    queryKey: ['model-performance'],
+    queryFn: () => apiClient.getModelPerformance(),
+    staleTime: Infinity,
+  });
+
+   // Also fetch XAI explanation for the first forecasted date
   const explainMutation = useMutation({
     mutationFn: async (forecast_date: string) => {
       return apiClient.explain({
@@ -218,15 +225,25 @@ export default function ForecastPage() {
 
   // --- Derived Stats ---
   
-  let avgSales = 0
-  let lowestFcst = 0
-  let highestFcst = 0
-  
-  if (data && data.forecasts.length > 0) {
-    avgSales = data.expected_sales / data.horizon
-    lowestFcst = Math.min(...data.forecasts.map((f: any) => f.point))
-    highestFcst = Math.max(...data.forecasts.map((f: any) => f.point))
-  }
+let avgSales = 0
+let lowestFcst = 0
+let highestFcst = 0
+let variance = 0
+let growthPct = 0
+
+if (data && data.forecasts.length > 0) {
+  avgSales = data.expected_sales / data.horizon
+  lowestFcst = Math.min(...data.forecasts.map((f: any) => f.point))
+  highestFcst = Math.max(...data.forecasts.map((f: any) => f.point))
+  // variance of forecast points (standard deviation)
+  const mean = avgSales
+  variance = Math.sqrt(data.forecasts.reduce((sum: number, f: any) => sum + (f.point - mean) ** 2, 0) / data.forecasts.length)
+  // growth compared to historical average
+  const histAvg = data.history && data.history.length > 0
+    ? data.history.reduce((s: number, h: any) => s + h.sales, 0) / data.history.length
+    : 0
+  growthPct = histAvg ? ((avgSales - histAvg) / histAvg) * 100 : 0
+}
 
   return (
     <>
@@ -319,7 +336,7 @@ export default function ForecastPage() {
                   <option value="auto">Auto (Best Performer)</option>
                   <option value="lightgbm">LightGBM (Fast)</option>
                   <option value="xgboost">XGBoost (Accurate)</option>
-                  <option value="arima">ARIMA (Baseline)</option>
+                  <option value="randomforest">Random Forest (Baseline)</option>
                 </select>
               </div>
               
@@ -348,12 +365,12 @@ export default function ForecastPage() {
                     <div style={{ fontWeight: 600 }}>{data.model_version}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, color: 'var(--tx-3)' }}>RMSE</div>
-                    <div style={{ fontWeight: 600, color: 'var(--green)' }}>6.2</div>
+<div style={{ fontSize: 11, color: 'var(--tx-3)' }}>RMSE</div>
+                      <div style={{ fontWeight: 600, color: 'var(--green)' }}>{modelPerf?.rmse ? modelPerf.rmse.toFixed(2) : 'N/A'}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, color: 'var(--tx-3)' }}>MAPE</div>
-                    <div style={{ fontWeight: 600, color: 'var(--teal)' }}>5.8%</div>
+<div style={{ fontSize: 11, color: 'var(--tx-3)' }}>MAPE</div>
+                      <div style={{ fontWeight: 600, color: 'var(--teal)' }}>{modelPerf?.mape ? modelPerf.mape.toFixed(2) + '%' : 'N/A'}</div>
                   </div>
                 </div>
               </div>
@@ -401,8 +418,8 @@ export default function ForecastPage() {
                   <div><span style={{color: 'var(--tx-3)', fontSize: 12}}>Lowest:</span> <span className="font-bold">{lowestFcst.toFixed(0)}</span></div>
                   <div><span style={{color: 'var(--tx-3)', fontSize: 12}}>Highest:</span> <span className="font-bold">{highestFcst.toFixed(0)}</span></div>
                   <div><span style={{color: 'var(--tx-3)', fontSize: 12}}>Average:</span> <span className="font-bold">{avgSales.toFixed(0)}</span></div>
-                  <div><span style={{color: 'var(--tx-3)', fontSize: 12}}>Variance:</span> <span className="font-bold">9.4</span></div>
-                  <div><span style={{color: 'var(--tx-3)', fontSize: 12}}>Growth:</span> <span className="text-green font-bold">+7%</span></div>
+                  <div><span style={{color: 'var(--tx-3)', fontSize: 12}}>Variance:</span> <span className="font-bold">{variance.toFixed(2)}</span></div>
+                  <div><span style={{color: 'var(--tx-3)', fontSize: 12}}>Growth:</span> <span className={`font-bold ${growthPct > 0 ? 'text-green' : growthPct < 0 ? 'text-rose' : ''}`}>{growthPct >= 0 ? '+' : ''}{growthPct.toFixed(1)}%</span></div>
                 </div>
               )}
             </div>

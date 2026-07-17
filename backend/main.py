@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, Any
 from contextlib import asynccontextmanager
-
+from prometheus_client import Counter, Histogram, Gauge
 import structlog
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request, Response, HTTPException, Depends, status, Form
@@ -387,6 +387,21 @@ else:
             }
         )
 
+
+# Models endpoint
+@app.get("/models/v2", tags=["Models"])
+async def list_models_v2():
+    """List available ML models."""
+    models = [
+        {"id": "lightgbm", "object": "model", "name": "LightGBM Ensemble"},
+        {"id": "xgboost", "object": "model", "name": "XGBoost Regressor"},
+        {"id": "randomforest", "object": "model", "name": "Random Forest"}
+    ]
+    return {
+        "object": "list",
+        "data": models,
+        "models": models
+    }
 
 # Root endpoint
 @app.get("/", tags=["Root"])

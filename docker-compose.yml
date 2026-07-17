@@ -19,7 +19,7 @@ services:
     volumes:
       - ./models:/app/models:ro
       - ./backend/logs:/app/backend/logs
-      - ./data:/app/data:rw
+      - ./data/forecast.db:/app/backend/forecast.db:rw
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s

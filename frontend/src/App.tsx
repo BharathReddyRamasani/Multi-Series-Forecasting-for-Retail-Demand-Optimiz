@@ -12,13 +12,10 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 const ForecastPage = lazy(() => import('./pages/Forecast'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const ModelPerformance = lazy(() => import('./pages/ModelPerformance'))
-const DatasetExplorer = lazy(() => import('./pages/DatasetExplorer'))
 const DigitalTwin = lazy(() => import('./pages/DigitalTwin'))
-const ForecastHistory = lazy(() => import('./pages/ForecastHistory'))
 const DecisionIntelligence = lazy(() => import('./pages/DecisionIntelligence'))
 const Stores = lazy(() => import('./pages/Stores'))
 const Items = lazy(() => import('./pages/Items'))
-const Inventory = lazy(() => import('./pages/Inventory'))
 const Settings = lazy(() => import('./pages/Settings'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -64,12 +61,12 @@ function AnimatedRoutes() {
           <Route path="/forecast" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ForecastPage /></PageWrapper></div></ProtectedRoute>} />
           <Route path="/analytics" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Analytics /></PageWrapper></div></ProtectedRoute>} />
           <Route path="/model-performance" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ModelPerformance /></PageWrapper></div></ProtectedRoute>} />
-          <Route path="/dataset" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><DatasetExplorer /></PageWrapper></div></ProtectedRoute>} />
-          <Route path="/history" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><ForecastHistory /></PageWrapper></div></ProtectedRoute>} />
+
+
           <Route path="/decision-intelligence" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><DecisionIntelligence /></PageWrapper></div></ProtectedRoute>} />
           <Route path="/stores" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Stores /></PageWrapper></div></ProtectedRoute>} />
           <Route path="/items" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Items /></PageWrapper></div></ProtectedRoute>} />
-          <Route path="/inventory" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Inventory /></PageWrapper></div></ProtectedRoute>} />
+
           <Route path="/settings" element={<ProtectedRoute><div className="app-layout"><Sidebar /><PageWrapper><Settings /></PageWrapper></div></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/landing" replace />} />

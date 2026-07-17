@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { apiClient } from '../api/client'
 import { useAuth as useClerkAuth, useUser as useClerkUser, useClerk } from '@clerk/clerk-react'
 
 interface User {
@@ -23,48 +24,47 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { isSignedIn, isLoaded, signOut } = useClerkAuth()
-  const { user: clerkUser, isLoaded: isUserLoaded } = useClerkUser()
-  const clerk = useClerk()
-
-  React.useEffect(() => {
-    import('../api/client').then(({ setGetTokenFn }) => {
-      setGetTokenFn(async () => {
-        if (clerk.session) {
-          return await clerk.session.getToken()
-        }
-        return null
-      })
-    })
-  }, [clerk.session])
-
-  const [globalStoreId, setGlobalStoreId] = useState<number>(1)
+  const { isLoaded: isAuthLoaded, isSignedIn, getToken } = useClerkAuth()
+  const { user: clerkUser } = useClerkUser()
+  const { signOut } = useClerk()
   const navigate = useNavigate()
 
+  const [globalStoreId, setGlobalStoreId] = useState<number>(1)
+
+  useEffect(() => {
+    import('../api/client').then(({ setGetTokenFn }) => {
+      setGetTokenFn(async () => {
+        if (!isSignedIn) return null;
+        try {
+          return await getToken();
+        } catch (e) {
+          return null;
+        }
+      })
+    })
+  }, [isSignedIn, getToken])
+
   const login = () => {
-    clerk.openSignIn()
+    navigate('/login')
   }
 
   const logout = () => {
-    signOut()
-    navigate('/landing')
+    signOut(() => navigate('/landing'))
   }
 
   const mappedUser: User | null = clerkUser ? {
-    username: clerkUser.primaryEmailAddress?.emailAddress?.split('@')[0] || 'User',
-    email: clerkUser.primaryEmailAddress?.emailAddress || '',
-    full_name: clerkUser.fullName || '',
+    username: clerkUser.username || clerkUser.firstName || 'User',
+    email: clerkUser.primaryEmailAddress?.emailAddress,
+    full_name: clerkUser.fullName,
     roles: ['user'],
   } : null
-
-  const isFullyLoaded = isLoaded && isUserLoaded
 
   return (
     <AuthContext.Provider
       value={{
         user: mappedUser,
         isAuthenticated: !!isSignedIn,
-        isLoaded: isFullyLoaded,
+        isLoaded: isAuthLoaded,
         login,
         logout,
         globalStoreId,

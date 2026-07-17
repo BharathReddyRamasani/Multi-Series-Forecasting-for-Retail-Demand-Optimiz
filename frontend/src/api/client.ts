@@ -227,9 +227,18 @@ export interface AccuracyHistoryResponse {
   trend: string
 }
 
+export interface PredictionRow {
+  date: string;
+  actual: number;
+  predicted: number;
+  error?: number;
+  error_pct?: number;
+}
+
 // ── API Calls ─────────────────────────────────────────────────────────────
 
 export const apiClient = {
+  // Existing methods ...
   health: () =>
     api.get<HealthResponse>('/health').then(r => r.data),
 
@@ -311,7 +320,7 @@ export const apiClient = {
   getModelFeatureImportance: (model = 'lightgbm') =>
     api.get<FeatureImportanceItem[]>(`/model-performance/importance?model=${model}`).then(r => r.data),
 
-  uploadCSV: (file: File) => {
+  uploadFile: (file: File) => {
     const form = new FormData()
     form.append('file', file)
     return api.post('/upload', form, {
@@ -334,16 +343,29 @@ export const apiClient = {
     return api.get<AccuracyHistoryResponse>(url).then(r => r.data)
   },
 
-  uploadData: (file: File) => {
-    const form = new FormData()
-    form.append('file', file)
-    return api.post('/upload', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data)
+
+
+  getPredictionHistory: (store: number, item: number, sigma?: number) => {
+    let url = `/history/prediction?store=${store}&item=${item}`;
+    if (sigma) url += `&sigma=${sigma}`;
+    return api.get<{ rows: PredictionRow[]; mae: number; mape: number; sigma: number }>(url).then(r => r.data);
   },
 
   explain: (req: ExplainRequest) =>
-    api.post<ExplainResponse>('/explain/', req).then(r => r.data),
+      api.post<ExplainResponse>('/explain/', req).then(r => r.data),
+
+  // Authentication
+  login: (username: string, password: string) => {
+    const form = new FormData()
+    form.append('username', username)
+    form.append('password', password)
+    return api.post('/auth/login', form).then(r => r.data)
+  },
+  register: (payload: { username: string; password: string; email?: string; full_name?: string }) => {
+    // Send JSON payload
+    return api.post('/auth/register', payload).then(r => r.data)
+  },
+  me: () => api.get<any>('/auth/me').then(r => r.data),
 }
 
 export default api

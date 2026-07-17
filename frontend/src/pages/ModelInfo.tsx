@@ -25,7 +25,7 @@ export default function ModelInfoPage() {
     }
     setUploading(true)
     try {
-      const result = await apiClient.uploadCSV(file)
+      const result = await apiClient.uploadFile(file)
       setUploadResult(result)
       toast.success(`✅ Uploaded ${result.rows_received.toLocaleString()} rows successfully!`)
     } catch (err: any) {

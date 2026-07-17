@@ -18,7 +18,7 @@ export default function ModelOps() {
 
 
   const uploadMutation = useMutation({
-    mutationFn: async (f: File) => await apiClient.uploadData(f),
+    mutationFn: async (f: File) => await apiClient.uploadFile(f),
     onSuccess: (res) => {
       toast.success(res.message, { style: { background: 'var(--surface-3)', color: 'var(--tx-1)', border: '1px solid var(--border)' } })
       queryClient.invalidateQueries({ queryKey: ['stores-items'] })

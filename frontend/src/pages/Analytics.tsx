@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart2, TrendingUp, Store, Package, Calendar, Target, Activity, AlertTriangle } from 'lucide-react'
 import { Bar, Line, Radar } from 'react-chartjs-2'
@@ -45,6 +45,11 @@ export default function Analytics() {
   const { data: itemSales } = useQuery({
     queryKey: ['item-sales', selectedItem],
     queryFn: () => apiClient.itemSales(parseInt(selectedItem))
+  })
+  
+  const { data: predictionHistory, isLoading: isLoadingPrediction } = useQuery({
+    queryKey: ['prediction-history', selectedStore, selectedItem],
+    queryFn: () => apiClient.getPredictionHistory(parseInt(selectedStore), parseInt(selectedItem))
   })
 
   const chartOptions = { 
@@ -148,9 +153,21 @@ export default function Analytics() {
       backgroundColor: 'rgba(0, 217, 126, 0.25)', 
       borderWidth: 3 
     }]
-  }
+}
+  
+  // Prediction history memoization
+  const sigma = 2;
+  const predictionData = useMemo(() => {
+    if (!predictionHistory?.rows?.length) return null;
+    const rows = predictionHistory.rows;
+    const errors = rows.map(r => r.error ?? (r.predicted - r.actual));
+    const mean = errors.reduce((a, b) => a + b, 0) / errors.length;
+    const variance = errors.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / errors.length;
+    const std = Math.sqrt(variance);
+    return { rows, errors, std };
+  }, [predictionHistory]);
 
-  return (
+   return (
     <>
       <div className="page-header">
         <div>
@@ -344,86 +361,102 @@ export default function Analytics() {
         )}
         
         {activeTab === 'error' && (
-          <div className="card">
-             <div className="card-header">
-                <span className="card-title">Error Analysis (Actual vs Predicted)</span>
-                <select className="select" style={{width: 200, marginLeft: 'auto'}} value={selectedItem} onChange={e => setSelectedItem(e.target.value)}>
-                    {storesItems?.items?.map((i: number) => <option key={i} value={i}>Item #{i}</option>)}
-                </select>
-             </div>
-             <div className="chart-wrap-tall">
-                 <Line 
-                   data={{
-                     labels: itemSales ? itemSales.monthly.map(m => m.month) : [],
-                     datasets: [
-                       {
-                         label: 'Actual Sales',
-                         data: itemSales ? itemSales.monthly.map(m => m.sales) : [],
-                         borderColor: '#4f83ff',
-                         backgroundColor: 'transparent',
-                         borderWidth: 2,
-                         tension: 0.4
-                       },
-                       {
-                         label: 'Predicted Sales',
-                         data: itemSales ? itemSales.monthly.map(m => m.sales * (1 + (Math.random() * 0.1 - 0.05))) : [],
-                         borderColor: '#00d97e',
-                         backgroundColor: 'transparent',
-                         borderDash: [5, 5],
-                         borderWidth: 2,
-                         tension: 0.4
-                       }
-                     ]
-                   }} 
-                   options={chartOptions as any} 
-                 />
-             </div>
-          </div>
-        )}
+  <div className="card">
+    <div className="card-header">
+      <span className="card-title">Error Analysis (Actual vs Predicted)</span>
+      {predictionData && predictionData.rows.length > 0 && (
+        <span style={{marginLeft: 'auto', backgroundColor: '#e53e3e', color: '#fff', padding: '2px 6px', borderRadius: '4px'}}>
+          Error %: {predictionData.rows[predictionData.rows.length - 1].error_pct?.toFixed(2) ?? 'N/A'}%
+        </span>
+      )}
+      <select className="select" style={{width: 200, marginLeft: 'auto'}} value={selectedItem} onChange={e => setSelectedItem(e.target.value)}>
+        {storesItems?.items?.map((i: number) => <option key={i} value={i}>Item #{i}</option>)}
+      </select>
+    </div>
+    <div className="chart-wrap-tall">
+      {predictionData ? (
+        <Line
+          data={{
+            labels: predictionData.rows.map(r => r.date),
+            datasets: [
+              {
+                label: 'Actual Sales',
+                data: predictionData.rows.map(r => r.actual),
+                borderColor: '#4f83ff',
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                tension: 0.4,
+              },
+              {
+                label: 'Predicted Sales',
+                data: predictionData.rows.map(r => r.predicted),
+                borderColor: '#00d97e',
+                backgroundColor: 'transparent',
+                borderDash: [5, 5],
+                borderWidth: 2,
+                tension: 0.4,
+              },
+            ],
+          }}
+          options={chartOptions as any}
+        />
+      ) : (
+        <div className="loading-center"><div className="spinner" /></div>
+      )}
+    </div>
+  </div>
+)}
         
-        {activeTab === 'outliers' && (
-          <div className="card">
-             <div className="card-header"><span className="card-title">Outliers Detection</span></div>
-             <div className="chart-wrap-tall">
-                 <Line 
-                   data={{
-                     labels: Array.from({length: 30}, (_, i) => `Day ${i+1}`),
-                     datasets: [{
-                       label: 'Sales Volume',
-                       data: Array.from({length: 30}, () => Math.floor(Math.random() * 50 + 100)).map((v, i) => i === 12 ? v + 120 : (i === 25 ? v - 80 : v)),
-                       borderColor: 'rgba(255,255,255,0.05)',
-                       backgroundColor: '#4f83ff',
-                       pointBackgroundColor: (context: any) => {
-                         const value = context.raw;
-                         return value > 180 || value < 40 ? '#ff4d6d' : '#4f83ff'
-                       },
-                       pointRadius: (context: any) => {
-                         const value = context.raw;
-                         return value > 180 || value < 40 ? 6 : 4
-                       },
-                       showLine: false
-                     }]
-                   }} 
-                   options={{
-                     ...chartOptions,
-                     plugins: {
-                       ...chartOptions.plugins,
-                       tooltip: {
-                         callbacks: {
-                           label: (context: any) => {
-                             const value = context.raw;
-                             if (value > 180) return `Outlier (Spike): ${value}`;
-                             if (value < 40) return `Outlier (Drop): ${value}`;
-                             return `Normal: ${value}`;
-                           }
-                         }
-                       }
-                     }
-                   } as any} 
-                 />
-             </div>
-          </div>
-        )}
+{activeTab === 'outliers' && (
+  <div className="card">
+    <div className="card-header"><span className="card-title">Outliers Detection</span></div>
+    <div className="chart-wrap-tall">
+      {predictionData ? (
+        <Line
+          data={{
+            labels: predictionData.rows.map(r => r.date),
+            datasets: [{
+              label: 'Actual Sales',
+              data: predictionData.rows.map(r => r.actual),
+              borderColor: 'rgba(255,255,255,0.05)',
+              backgroundColor: '#4f83ff',
+              pointBackgroundColor: (context: any) => {
+                const i = context.dataIndex;
+                const err = predictionData.errors[i] ?? 0;
+                return Math.abs(err) > sigma * (predictionData.std ?? 0) ? '#ff4d6d' : '#4f83ff';
+              },
+              pointRadius: (context: any) => {
+                const i = context.dataIndex;
+                const err = predictionData.errors[i] ?? 0;
+                return Math.abs(err) > sigma * (predictionData.std ?? 0) ? 6 : 4;
+              },
+              showLine: false,
+            }]
+          }}
+          options={{
+            ...chartOptions,
+            plugins: {
+              ...chartOptions.plugins,
+              tooltip: {
+                callbacks: {
+                  label: (context: any) => {
+                    const i = context.dataIndex;
+                    const row = predictionData.rows[i];
+                    const err = row.error ?? (row.predicted - row.actual);
+                    const isOutlier = Math.abs(err) > sigma * (predictionData.std ?? 0);
+                    return isOutlier ? `Outlier (Error ${err.toFixed(2)})` : `Normal (${row.actual})`;
+                  }
+                }
+              }
+            }
+          } as any}>
+        </Line>
+      ) : (
+        <div className="loading-center"><div className="spinner" /></div>
+      )}
+    </div>
+  </div>
+)}
 
       </div>
     </>

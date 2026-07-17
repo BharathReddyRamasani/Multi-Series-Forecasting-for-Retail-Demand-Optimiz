@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, TrendingUp, Cpu, Network, Store, Database, History, FileText, Package, BarChart2, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, TrendingUp, Cpu, Network, Store, Database, FileText, Package, BarChart2, Settings, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
@@ -49,10 +49,6 @@ export default function Sidebar() {
           <Database size={16} className="nav-icon" />
           Items
         </NavLink>
-        <NavLink to="/inventory" className={navClass}>
-          <Package size={16} className="nav-icon" />
-          Inventory
-        </NavLink>
         <NavLink to="/decision-intelligence" className={navClass}>
           <Network size={16} className="nav-icon" />
           Decision Intelligence
@@ -60,14 +56,6 @@ export default function Sidebar() {
         <NavLink to="/model-performance" className={navClass}>
           <Cpu size={16} className="nav-icon" />
           Model Performance
-        </NavLink>
-        <NavLink to="/history" className={navClass}>
-          <History size={16} className="nav-icon" />
-          Forecast History
-        </NavLink>
-        <NavLink to="/dataset" className={navClass}>
-          <Database size={16} className="nav-icon" />
-          Dataset Explorer
         </NavLink>
         <NavLink to="/settings" className={navClass}>
           <Settings size={16} className="nav-icon" />

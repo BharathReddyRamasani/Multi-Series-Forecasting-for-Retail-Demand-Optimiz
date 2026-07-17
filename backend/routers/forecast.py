@@ -27,6 +27,9 @@ async def generate_forecast(body: ForecastRequest, request: Request):
 
     try:
         model_to_use = body.model_type
+        # Map legacy alias 'rf' to the actual model name
+        if model_to_use == "rf":
+            model_to_use = "randomforest"
         if model_to_use == "auto":
             model_to_use = "lightgbm"
 
