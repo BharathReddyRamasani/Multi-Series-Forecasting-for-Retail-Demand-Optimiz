@@ -29,21 +29,24 @@ async def generate_forecast(body: ForecastRequest, request: Request):
         model_to_use = body.model_type
         if model_to_use == "auto":
             model_to_use = "lightgbm"
-            
-        predictions = forecaster.forecast(
-            store=body.store,
-            item=body.item,
-            horizon=body.horizon,
-            model_type=model_to_use,
-            start_date=body.start_date,
-            scenario_overrides=getattr(body, "scenario_overrides", None)
-        )
-        
+
+        try:
+            predictions = forecaster.forecast(
+                store=body.store,
+                item=body.item,
+                horizon=body.horizon,
+                model_type=model_to_use,
+                start_date=body.start_date,
+                scenario_overrides=getattr(body, "scenario_overrides", None)
+            )
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
+
         from database import get_db_connection
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            start = body.start_date if body.start_date else "2023-01-01" 
+            start = body.start_date if body.start_date else datetime.now().strftime("%Y-%m-%d")
             cursor.execute("SELECT date, sales FROM sales WHERE store=? AND item=? AND date < ? ORDER BY date DESC LIMIT 90", (body.store, body.item, start))
             history_rows = cursor.fetchall()
             

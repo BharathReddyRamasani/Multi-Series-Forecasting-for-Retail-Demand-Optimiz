@@ -140,6 +140,7 @@ class ForecastingService:
 
         self.feature_importance_xgb = []
         self.xgb_features = []
+        self.xgb_metrics = {}
         try:
             self.xgb_features = joblib.load(xgb_dir / "xgboost_features.pkl")
             with open(xgb_dir / "xgboost_feature_importance.csv", newline="") as f:
@@ -153,6 +154,13 @@ class ForecastingService:
                 item["rank"] = i + 1
         except Exception as e:
             logger.warning("Failed to load XGBoost feature importance: %s", e)
+
+        try:
+            mdf = pd.read_csv(xgb_dir / "xgboost_metrics.csv")
+            for _, row in mdf.iterrows():
+                self.xgb_metrics[row["Metric"].lower()] = float(row["Value"])
+        except Exception as e:
+            logger.warning("Failed to load XGBoost metrics: %s", e)
 
         # ── RandomForest ──
         rf_dir = MODELS_DIR / "randomforest"
@@ -236,39 +244,10 @@ class ForecastingService:
     # ── Real Inference & Training Methods ───────────────────────────────────
 
     def _prepare_features(self, feat_df: pd.DataFrame, store: int, item: int, model_type: str) -> pd.DataFrame:
-        rename_map = {
-            'sales_expanding_mean': 'expanding_mean',
-            'sales_lag_90': 'lag_90',
-            'sales_roll_std_7': 'rolling_std_7',
-            'sales_lag_7': 'lag_7',
-            'sales_lag_14': 'lag_14',
-            'sales_lag_28': 'lag_28',
-            'sales_roll_mean_7': 'rolling_mean_7',
-            'sales_lag_30': 'lag_30',
-            'day_of_year': 'dayofyear',
-            'sales_roll_std_14': 'rolling_std_14',
-            'sales_roll_mean_90': 'rolling_mean_90',
-            'sales_roll_std_30': 'rolling_std_30',
-            'sales_roll_std_90': 'rolling_std_90',
-            'sales_roll_mean_14': 'rolling_mean_14',
-            'sales_roll_mean_30': 'rolling_mean_30',
-            'sales_ema_0.5': 'ema_05',
-            'sales_ema_0.7': 'ema_07',
-            'sales_ema_0.8': 'ema_08',
-            'sales_ema_0.9': 'ema_09',
-            'sales_ema_0.95': 'ema_095',
-            'sales_lag_1': 'lag_1',
-            'day_of_week': 'dayofweek',
-            'week': 'weekofyear',
-            'weekend': 'is_weekend',
-            'sales_roll_median_14': 'rolling_median_14',
-            'sales_roll_median_7': 'rolling_median_7',
-            'sales_roll_median_30': 'rolling_median_30'
-        }
-        df = feat_df.rename(columns=rename_map)
+        df = feat_df.copy()
         df['store'] = store
         df['item'] = item
-        
+
         if model_type == "xgboost" and self.xgb_features:
             cols = self.xgb_features
         elif model_type == "randomforest" and self.rf_features:
@@ -277,19 +256,26 @@ class ForecastingService:
             cols = self.lgb_features
         else:
             cols = FEATURE_COLUMNS
-            
+
         for c in cols:
             if c not in df.columns:
                 df[c] = 0.0
                 
         return df[cols]
 
+    def _interval(self, point: np.ndarray, rmse: float) -> tuple:
+        """Real 90% prediction interval: point ± 1.645 * RMSE."""
+        z = 1.645
+        width = np.maximum(z * rmse, point * 0.05)
+        low = np.clip(point - width, 0, None)
+        high = point + width
+        return low, high
+
     def _forecast_lightgbm(self, X: pd.DataFrame, horizon: int) -> tuple:
         """Use pre-trained LightGBM."""
         point = np.clip(self.model_point.predict(X), 0, None)
-        # Dynamically calculate 90% confidence bounds based on a 15% variation around point
-        low   = np.clip(point * 0.85, 0, None)
-        high  = np.clip(point * 1.15, 0, None)
+        rmse = self.metrics.get("rmse", 7.58)
+        low, high = self._interval(point, rmse)
         return point, low, high
 
     def _forecast_xgboost(self, history: pd.DataFrame, X_future: pd.DataFrame, horizon: int) -> tuple:
@@ -298,18 +284,16 @@ class ForecastingService:
             point = np.clip(self.model_xgb.predict(X_future), 0, None)
         else:
             raise RuntimeError("XGBoost model is not loaded.")
-            
-        # Dynamically calculate confidence bounds based on a 15% variation
-        low = np.clip(point * 0.85, 0, None)
-        high = np.clip(point * 1.15, 0, None)
+        rmse = self.xgb_metrics.get("rmse", 9.73)
+        low, high = self._interval(point, rmse)
         return point, low, high
 
     def _forecast_rf(self, X: pd.DataFrame, horizon: int) -> tuple:
         if self.model_rf is None:
             raise RuntimeError("RandomForest model is not loaded.")
         point = np.clip(self.model_rf.predict(X), 0, None)
-        low = np.clip(point * 0.85, 0, None)
-        high = np.clip(point * 1.15, 0, None)
+        rmse = self.rf_metrics.get("rmse", 7.01)
+        low, high = self._interval(point, rmse)
         return point, low, high
 
     def _forecast_arima(self, history: pd.DataFrame, horizon: int, order: tuple) -> tuple:
@@ -378,11 +362,16 @@ class ForecastingService:
                         feat_df[col] = feat_df[col] * 1.25 # 25% boost
         X_future_df = self._prepare_features(feat_df, store, item, model_type)
 
+        supported = {"lightgbm", "xgboost", "randomforest", "arima", "sarima", "arma"}
+        if model_type not in supported:
+            raise ValueError(
+                f"Unsupported model_type '{model_type}'. Supported: {sorted(supported)}")
+
         if model_type == "xgboost":
             preds_point, preds_low, preds_high = self._forecast_xgboost(history, X_future_df, horizon)
         elif model_type == "randomforest":
             preds_point, preds_low, preds_high = self._forecast_rf(X_future_df, horizon)
-        elif model_type == "sarima":
+        elif model_type in ("sarima", "arima"):
             preds_point, preds_low, preds_high = self._forecast_arima(history, horizon, order=(1, 1, 1))
         elif model_type == "arma":
             preds_point, preds_low, preds_high = self._forecast_arima(history, horizon, order=(2, 0, 1))

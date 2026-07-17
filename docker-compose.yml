@@ -1,4 +1,4 @@
-version: "3.9"
+version: "3.8"
 
 services:
   forecast-api:
@@ -10,7 +10,7 @@ services:
       - "8000:8000"
     environment:
       - ENV=production
-      - CORS_ORIGINS=http://localhost:8000
+      - CORS_ORIGINS=http://localhost:8000,http://localhost:3000,http://127.0.0.1:3000
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
@@ -18,3 +18,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    volumes:
+      - ./models:/app/models:ro
+      - ./backend/logs:/app/backend/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "1"
+          memory: 1G

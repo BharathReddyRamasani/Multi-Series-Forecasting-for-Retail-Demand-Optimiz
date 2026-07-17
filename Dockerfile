@@ -26,7 +26,9 @@ COPY models/ /app/models/
 COPY --from=frontend-builder /build/frontend/dist/ /app/backend/static/
 
 ENV ENV=production
-ENV CORS_ORIGINS=http://localhost:8000
+# Default CORS origins - can be overridden at runtime
+ENV CORS_ORIGINS=http://localhost:8000,http://localhost:3000,http://127.0.0.1:3000
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
+# Use gunicorn for production with multiple workers
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "main:app"]
