@@ -648,3 +648,50 @@ tbody tr:hover td { background: var(--surface-3); }
 /* ─── Misc ───────────────────────────────────────────────────────────────── */
 .glow-border { /* intentional no-op */ }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ─── Light theme ─────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:          #f4f6fb;
+  --bg-grid:     #f4f6fb;
+  --surface-0:   #ffffff;
+  --surface-1:   #ffffff;
+  --surface-2:   #f1f4f9;
+  --surface-3:   #e7ecf3;
+  --surface-4:   #dde4ee;
+  --surface-5:   #d2dae6;
+  --border:      rgba(15, 23, 42, 0.08);
+  --border-md:   rgba(15, 23, 42, 0.14);
+  --border-hi:   rgba(15, 23, 42, 0.24);
+  --tx-1:        #0f172a;
+  --tx-2:        #334155;
+  --tx-3:        #64748b;
+  --tx-4:        #94a3b8;
+  --green-bg:    rgba(0, 217, 126, 0.12);
+  --amber-bg:    rgba(245, 166, 35, 0.14);
+  --rose-bg:     rgba(255, 77, 109, 0.12);
+  --teal-bg:     rgba(0, 200, 212, 0.12);
+  color: var(--tx-1);
+}
+
+[data-theme="light"] body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(79, 131, 255, 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 10%, rgba(168, 85, 247, 0.08), transparent 55%),
+    var(--bg);
+}
+
+[data-theme="light"] .card,
+[data-theme="light"] .sidebar,
+[data-theme="light"] .auth-split {
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] option {
+  background: var(--surface-2);
+  color: var(--tx-1);
+}
+
+[data-theme="light"] table td,
+[data-theme="light"] table th {
+  border-bottom-color: var(--border);
+}

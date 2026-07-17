@@ -12,14 +12,26 @@ import {
 import toast from 'react-hot-toast'
 import { apiClient } from '../api/client'
 import type { ForecastRequest } from '../api/client'
+import { DEFAULT_SETTINGS } from '../hooks/useSettings'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler)
 
+function initialSettings() {
+  try {
+    const raw = localStorage.getItem('demandai_settings')
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_SETTINGS
+}
+
 export default function ForecastPage() {
+  const saved = initialSettings()
   const [store, setStore] = useState('1')
   const [item, setItem] = useState('1')
-  const [horizon, setHorizon] = useState('30')
-  const [modelType, setModelType] = useState('lightgbm')
+  const [horizon, setHorizon] = useState(saved.horizon)
+  const [modelType, setModelType] = useState(saved.model)
   
   // Chart Toggles
   const [showHistory, setShowHistory] = useState(true)

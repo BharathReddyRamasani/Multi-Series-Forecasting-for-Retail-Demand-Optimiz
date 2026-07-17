@@ -233,6 +233,29 @@ export const apiClient = {
   health: () =>
     api.get<HealthResponse>('/health').then(r => r.data),
 
+  // ── Reports ──
+  downloadReport: async (type: 'csv' | 'json' = 'csv') => {
+    const token = localStorage.getItem('demandai_token')
+    const res = await fetch(`/api/reports/generate?type=${type}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      throw new Error(`Report generation failed (${res.status})`)
+    }
+    const blob = await res.blob()
+    const cd = res.headers.get('content-disposition') || ''
+    const match = cd.match(/filename=([^;]+)/)
+    const filename = match ? match[1].replace(/['"]/g, '') : `forecast_report.${type}`
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
 
   forecast: (req: ForecastRequest) =>
     api.post<ForecastResponse>('/forecast', req).then(r => r.data),
