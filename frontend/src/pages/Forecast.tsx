@@ -307,8 +307,7 @@ export default function ForecastPage() {
                   <option value="auto">Auto (Best Performer)</option>
                   <option value="lightgbm">LightGBM (Fast)</option>
                   <option value="xgboost">XGBoost (Accurate)</option>
-                  <option value="sarima">SARIMA (Baseline)</option>
-                  <option value="gru">Deep Learning (GRU)</option>
+                  <option value="arima">ARIMA (Baseline)</option>
                 </select>
               </div>
               

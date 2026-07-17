@@ -15,13 +15,12 @@ from statsmodels.tsa.arima.model import ARIMA
 from services.feature_engine import (
     build_history_dataframe,
     engineer_features,
-    FEATURE_COLUMNS,
 )
 from services.cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
-MODELS_DIR = Path(__file__).parent.parent.parent / "models"
+MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "v2"
 
 class ForecastingService:
     """Orchestrates multi-model forecasting."""
@@ -114,15 +113,17 @@ class ForecastingService:
         # Load XGBoost model
         try:
             xgb_dir = MODELS_DIR / "xgboost"
-            self.model_xgb = joblib.load(xgb_dir / "xgboost_model (2).pkl")
+            self.model_xgb = joblib.load(xgb_dir / "xgboost_model.pkl")
             print("Loaded XGBoost.")
         except Exception as e:
             print(f"Warning: XGBoost failed to load: {e}")
             self.model_xgb = None
 
         self.feature_importance_xgb = []
+        self.xgb_features = []
         try:
-            with open(xgb_dir / "xgboost_feature_importance (2).csv", newline="") as f:
+            self.xgb_features = joblib.load(xgb_dir / "xgboost_features.pkl")
+            with open(xgb_dir / "xgboost_feature_importance.csv", newline="") as f:
                 reader = csv.DictReader(f)
                 self.feature_importance_xgb = [
                     {"feature": row["Feature"], "importance": float(row["Importance"])}
@@ -249,12 +250,14 @@ class ForecastingService:
         df['store'] = store
         df['item'] = item
         
-        if model_type == "xgboost":
-            cols = ['store', 'item', 'year', 'month', 'day', 'dayofweek', 'weekofyear', 'quarter', 'is_weekend', 'dayofyear', 'lag_1', 'lag_7', 'lag_14', 'lag_28', 'lag_30', 'lag_90', 'rolling_std_7', 'rolling_std_14', 'rolling_std_30', 'rolling_std_90', 'rolling_median_7', 'rolling_median_14', 'rolling_median_30', 'ema_095', 'ema_09', 'ema_08', 'ema_07', 'expanding_mean']
+        if model_type == "xgboost" and self.xgb_features:
+            cols = self.xgb_features
         elif model_type == "randomforest" and self.rf_features:
             cols = self.rf_features
+        elif self.lgb_features:
+            cols = self.lgb_features
         else:
-            cols = ['expanding_mean', 'lag_90', 'rolling_std_7', 'lag_7', 'lag_14', 'lag_28', 'rolling_mean_7', 'lag_30', 'dayofyear', 'rolling_std_14', 'rolling_mean_90', 'rolling_std_30', 'day', 'rolling_std_90', 'rolling_mean_14', 'rolling_mean_30', 'ema_07', 'item', 'lag_1', 'dayofweek', 'ema_08', 'month', 'ema_095', 'ema_09', 'weekofyear', 'year', 'store', 'is_weekend', 'quarter']
+            cols = FEATURE_COLUMNS
             
         for c in cols:
             if c not in df.columns:
@@ -342,8 +345,7 @@ class ForecastingService:
         forecast_dates = pd.date_range(start=start, periods=horizon, freq="D")
         history = self._get_history(store, item, start)
         
-        # Build features (needed for LGBM and XGB)
-        from services.feature_engine import FEATURE_COLUMNS
+        # Build features
         feat_df = engineer_features(history, forecast_dates, store, item)
         
         if scenario_overrides:
@@ -356,12 +358,8 @@ class ForecastingService:
                     if "sales" in col or "mean" in col or "lag" in col:
                         feat_df[col] = feat_df[col] * 1.25 # 25% boost
         X_future_df = self._prepare_features(feat_df, store, item, model_type)
-        X_future_arr = feat_df[FEATURE_COLUMNS].values.astype(np.float32) # For other models
+        X_future_arr = feat_df[FEATURE_COLUMNS].values.astype(np.float32)
 
-        # Route to appropriate real model
-        print("DEBUG X_future_df for first horizon day:")
-        print(X_future_df.iloc[0].to_dict())
-        
         if model_type == "xgboost":
             preds_point, preds_low, preds_high = self._forecast_xgboost(history, X_future_df, horizon)
         elif model_type == "randomforest":

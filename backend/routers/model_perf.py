@@ -88,9 +88,10 @@ async def get_feature_importance(model: str = Query("lightgbm")):
     import csv
     key_map = {"lightgbm": "lightgbm", "xgboost": "xgboost", "randomforest": "randomforest", "rf": "randomforest"}
     key = key_map.get(model, "lightgbm")
-    path = MODELS_DIR / key / f"{key}_feature_importance (2).csv" if key == "xgboost" else MODELS_DIR / key / f"{key}_feature_importance.csv"
-    if not path.exists():
-        path = MODELS_DIR / key / f"{key}_feature_importance.csv"
+    for base in [V2_DIR, MODELS_DIR]:
+        path = base / key / f"{key}_feature_importance.csv"
+        if path.exists():
+            break
     try:
         with open(path, newline="") as f:
             reader = csv.DictReader(f)

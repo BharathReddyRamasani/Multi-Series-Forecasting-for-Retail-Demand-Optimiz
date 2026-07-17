@@ -260,6 +260,9 @@ export const apiClient = {
   getModelPerformance: () =>
     api.get('/model-performance').then(r => r.data),
 
+  getModelFeatureImportance: (model = 'lightgbm') =>
+    api.get<FeatureImportanceItem[]>(`/model-performance/importance?model=${model}`).then(r => r.data),
+
   uploadCSV: (file: File) => {
     const form = new FormData()
     form.append('file', file)

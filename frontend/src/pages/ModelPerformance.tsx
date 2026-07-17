@@ -14,15 +14,21 @@ export default function ModelPerformance() {
     queryFn: apiClient.getModelPerformance
   })
 
+  const { data: fiData } = useQuery({
+    queryKey: ['modelFeatureImportance'],
+    queryFn: () => apiClient.getModelFeatureImportance('lightgbm')
+  })
+
   if (isLoading) return <div className="loading-center"><div className="spinner-lg" /></div>
 
   // --- Feature Importance (Bar) ---
+  const topFeatures = (fiData || []).slice(0, 10)
   const featureImportanceData = {
-    labels: ['lag_7', 'rolling_mean_30', 'day_of_week', 'store_id', 'item_id', 'month', 'is_weekend'],
+    labels: topFeatures.map((f: any) => f.feature),
     datasets: [
       {
         label: 'Relative Importance',
-        data: [100, 75, 45, 30, 25, 15, 10],
+        data: topFeatures.map((f: any) => f.importance),
         backgroundColor: '#4f83ff',
         borderRadius: 4
       }
