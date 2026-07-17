@@ -22,9 +22,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
+# Create and activate virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 # Install Python dependencies
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ========== FINAL STAGE ==========
 FROM python:3.11-slim
@@ -38,8 +42,8 @@ WORKDIR /app
 COPY --from=frontend-builder /app/frontend/dist ./backend/static/
 
 # Copy backend dependencies
-COPY --from=backend-deps /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+COPY --from=backend-deps /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY backend/ ./backend/
