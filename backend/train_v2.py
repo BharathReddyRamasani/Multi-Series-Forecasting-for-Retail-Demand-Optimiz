@@ -109,14 +109,24 @@ def engineer_features_for_train(df: pd.DataFrame) -> pd.DataFrame:
     df["sales_weekly_growth"] = grp["sales"].transform(lambda x: x.shift(1) / x.shift(8).replace(0, np.nan))
     df["sales_monthly_growth"] = grp["sales"].transform(lambda x: x.shift(1) / x.shift(31).replace(0, np.nan))
 
-    for c in ["store","item"]:
-        series_mean = df.groupby(c)["sales"].transform("mean")
-        df[f"{c}_avg_sales"] = series_mean
+    # Leakage-free group averages: use the expanding mean of PAST sales only
+    # (shifted by 1) so test rows cannot see their own or future targets.
+    for c in ["store", "item"]:
+        df[f"{c}_avg_sales"] = (
+            df.groupby(c)["sales"]
+            .transform(lambda x: x.shift(1).expanding().mean())
+        )
 
-    store_item_mean = df.groupby(["store","item"])["sales"].transform("mean")
+    # Leakage-free trend: mean of the most recent 30 days of history minus the
+    # mean of the preceding 30 days, both computed only from past data.
+    def _past_trend(x: pd.Series) -> pd.Series:
+        past = x.shift(1)
+        recent = past.rolling(30, min_periods=1).mean()
+        earlier = past.shift(30).rolling(30, min_periods=1).mean()
+        return recent - earlier
+
     df["store_sales_trend"] = (
-        df.groupby(["store","item"])["sales"]
-        .transform(lambda x: x.tail(30).mean() - x.head(30).mean())
+        df.groupby(["store", "item"])["sales"].transform(_past_trend)
     )
 
     for c in FEATURE_COLUMNS:
@@ -239,7 +249,7 @@ def main():
     logger.info("Training RandomForest...")
     from sklearn.ensemble import RandomForestRegressor
     rf_model = RandomForestRegressor(
-        n_estimators=500, max_depth=20, min_samples_split=10,
+        n_estimators=120, max_depth=12, min_samples_split=10,
         min_samples_leaf=5, max_features="sqrt",
         random_state=42, n_jobs=-1, verbose=0
     )

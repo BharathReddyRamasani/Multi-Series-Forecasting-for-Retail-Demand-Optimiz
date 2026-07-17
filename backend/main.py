@@ -47,15 +47,16 @@ except Exception as e:
     import traceback
     traceback.print_exc()
     routers_loaded = False
+    _startup_e = e
+    _startup_traceback = traceback.format_exc()
 
 # Global variables for startup errors
 startup_error = None
 startup_traceback = None
 
 if not routers_loaded:
-    import traceback
-    startup_error = str(e)
-    startup_traceback = traceback.format_exc()
+    startup_error = str(_startup_e)
+    startup_traceback = _startup_traceback
 
 # Prometheus metrics
 REQUEST_COUNT = Counter(

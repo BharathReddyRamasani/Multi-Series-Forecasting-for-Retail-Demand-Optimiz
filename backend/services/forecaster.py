@@ -274,7 +274,8 @@ class ForecastingService:
     def _forecast_lightgbm(self, X: pd.DataFrame, horizon: int) -> tuple:
         """Use pre-trained LightGBM."""
         point = np.clip(self.model_point.predict(X), 0, None)
-        rmse = self.metrics.get("rmse", 7.58)
+        # Use the model's honest test-set RMSE from metrics.csv for the interval.
+        rmse = self.metrics.get("rmse", 7.3)
         low, high = self._interval(point, rmse)
         return point, low, high
 
@@ -284,7 +285,7 @@ class ForecastingService:
             point = np.clip(self.model_xgb.predict(X_future), 0, None)
         else:
             raise RuntimeError("XGBoost model is not loaded.")
-        rmse = self.xgb_metrics.get("rmse", 9.73)
+        rmse = self.xgb_metrics.get("rmse", 7.8)
         low, high = self._interval(point, rmse)
         return point, low, high
 
@@ -292,7 +293,7 @@ class ForecastingService:
         if self.model_rf is None:
             raise RuntimeError("RandomForest model is not loaded.")
         point = np.clip(self.model_rf.predict(X), 0, None)
-        rmse = self.rf_metrics.get("rmse", 7.01)
+        rmse = self.rf_metrics.get("rmse", 7.1)
         low, high = self._interval(point, rmse)
         return point, low, high
 
@@ -438,53 +439,57 @@ class ForecastingService:
         else:
             active_model = self.model_point
             active_fi = self.feature_importance
-
         prediction = float(np.clip(active_model.predict(X_explain_df), 0, None)[0])
-        
-        # Use realistic mocked SHAP for demo (actual shap causes segfaults in some envs)
-        base_value = prediction * 0.75 # Make base value 75% of prediction
-        # Distribute the remaining 25% among top features from global importance
-        diff = prediction - base_value
-        shap_vals = np.zeros(len(FEATURE_COLUMNS))
-        top_indices = [FEATURE_COLUMNS.index(f["feature"]) for f in active_fi[:5] if f["feature"] in FEATURE_COLUMNS]
-        
-        # Simple distribution
-        weights = [0.4, 0.3, 0.15, 0.1, 0.05]
-        for i, idx in enumerate(top_indices[:len(weights)]):
-            shap_vals[idx] = diff * weights[i]
-        
-        # Add a negative one for realism
-        if len(FEATURE_COLUMNS) > 20:
-            shap_vals[20] = -diff * 0.1
-            base_value += diff * 0.1
 
-        # Format output
+        # Honest feature contributions: attribute the deviation of the prediction
+        # from a reference (historical mean demand) to each feature in proportion to
+        # the model's native feature importances. This is a real, deterministic
+        # importance-weighted contribution — not SHAP, but not mocked either.
+        ref_value = float(np.mean(history["sales"])) if len(history) else 0.0
+        importances = np.asarray(
+            getattr(active_model, "feature_importances_", None), dtype=float
+        )
+        if importances is None or importances.sum() == 0:
+            importances = np.ones(len(FEATURE_COLUMNS))
+        importances = importances / importances.sum()
+
+        diff = prediction - ref_value
+        contrib = importances * diff
+
         shap_list = []
-        for i, col in enumerate(FEATURE_COLUMNS):
-            val = float(shap_vals[i])
-            if abs(val) > 0.05:  # Only include meaningful contributions
-                shap_list.append({"feature": col, "value": round(val, 2)})
-
-        # Sort by absolute impact
+        for col, cval in zip(FEATURE_COLUMNS, contrib):
+            fval = float(X_explain_df[col].iloc[0]) if col in X_explain_df.columns else 0.0
+            shap_list.append({
+                "feature": col,
+                "value": round(float(cval), 3),
+                "feature_value": round(float(fval), 3),
+            })
+        shap_list = [s for s in shap_list if abs(s["value"]) > 0.05]
         shap_list.sort(key=lambda x: abs(x["value"]), reverse=True)
-        
-        # Generate insight text
+
         top_positive = [s for s in shap_list if s["value"] > 0][:2]
         top_negative = [s for s in shap_list if s["value"] < 0][:1]
-        
-        insight_text = f"Demand is projected at {round(prediction)} units. "
+
+        insight_text = (
+            f"Demand is projected at {round(prediction)} units "
+            f"(reference historical mean: {round(ref_value)}). "
+        )
         if top_positive:
-            insight_text += f"This is primarily driven up by strong recent trends ({top_positive[0]['feature']}). "
+            insight_text += (
+                f"Largest positive drivers: {top_positive[0]['feature']}"
+                + (f", {top_positive[1]['feature']}" if len(top_positive) > 1 else "")
+                + ". "
+            )
         if top_negative:
-            insight_text += f"However, it is slightly dampened by {top_negative[0]['feature']}. "
-            
+            insight_text += f"Largest negative driver: {top_negative[0]['feature']}. "
         insight_text += "Recommendation: Maintain safety stock and monitor closely."
 
         result = {
             "prediction": round(prediction, 1),
-            "base_value": round(base_value, 1),
+            "base_value": round(ref_value, 1),
+            "method": "importance-weighted contribution (not SHAP)",
             "shap_values": shap_list[:10],
-            "insight_text": insight_text
+            "insight_text": insight_text,
         }
         self._explain_cache.set(result, 600, store, item, forecast_date, model_type)
         return result

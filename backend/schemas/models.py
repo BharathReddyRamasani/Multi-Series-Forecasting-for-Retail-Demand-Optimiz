@@ -29,7 +29,10 @@ class ForecastRequest(BaseModel):
                 raise ValueError("start_date must be in YYYY-MM-DD format")
         return v
 
-    model_config = {"json_schema_extra": {"example": {"store": 1, "item": 1, "horizon": 30}}}
+    model_config = {
+        "json_schema_extra": {"example": {"store": 1, "item": 1, "horizon": 30}},
+        "protected_namespaces": (),
+    }
 
 
 class ForecastPoint(BaseModel):
@@ -156,9 +159,11 @@ class InventoryResponse(BaseModel):
 class ShapValue(BaseModel):
     feature: str
     value: float
+    feature_value: Optional[float] = None
 
 class ExplainResponse(BaseModel):
     prediction: float
     base_value: float
     shap_values: List[ShapValue]
     insight_text: str = ""
+    method: Optional[str] = None

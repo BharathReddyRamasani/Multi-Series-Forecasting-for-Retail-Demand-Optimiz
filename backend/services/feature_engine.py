@@ -90,10 +90,20 @@ def _add_sales_features(df: pd.DataFrame) -> pd.DataFrame:
         lambda x: x.shift(1) / x.shift(31).replace(0, np.nan))
 
     for c in ["store", "item"]:
-        df[f"{c}_avg_sales"] = df.groupby(c)["sales"].transform("mean")
+        df[f"{c}_avg_sales"] = (
+            df.groupby(c)["sales"]
+            .transform(lambda x: x.shift(1).expanding().mean())
+        )
 
-    df["store_sales_trend"] = df.groupby(["store", "item"])["sales"].transform(
-        lambda x: x.tail(30).mean() - x.head(30).mean())
+    def _past_trend(x: pd.Series) -> pd.Series:
+        past = x.shift(1)
+        recent = past.rolling(30, min_periods=1).mean()
+        earlier = past.shift(30).rolling(30, min_periods=1).mean()
+        return recent - earlier
+
+    df["store_sales_trend"] = (
+        df.groupby(["store", "item"])["sales"].transform(_past_trend)
+    )
     return df
 
 
