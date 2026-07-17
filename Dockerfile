@@ -44,9 +44,6 @@ ENV PATH=/root/.local/bin:$PATH
 # Copy application code
 COPY backend/ ./backend/
 COPY models/ ./models/
-COPY docker-compose.yml ./
-COPY .dockerignore ./
-COPY README.md ./
 
 # Create necessary directories
 RUN mkdir -p backend/logs && \
