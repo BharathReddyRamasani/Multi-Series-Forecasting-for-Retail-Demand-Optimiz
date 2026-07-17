@@ -12,20 +12,6 @@
 
 ---
 
-## Hero
-
-<div align="center">
-
-![Banner placeholder – a clean, wide‑screen illustration of the platform UI](/docs/assets/banner.png)
-
-*Optional GIF demo*
-`<gif-demo-placeholder>`
-
-*Optional screenshot*
-`<screenshot-placeholder>`
-
-</div>
-
 ---
 
 ## Overview
@@ -54,26 +40,6 @@ DemandAI is a **real‑time, enterprise‑grade demand‑forecasting SaaS** that
 | **Performance** | ⚡ **SQLite Caching** – Historic predictions cached for sub‑ms latency. |
 
 ---
-
-## Architecture
-
-```mermaid
-flowchart TD
-    A[User] -->|HTTP(S)| B[Frontend (React + TS)]
-    B -->|REST| C[Backend API (FastAPI)]
-    C --> D[ML Models (LightGBM, XGBoost, SARIMA, ARMA)]
-    C --> E[Database (SQLite & forecast.db)]
-    D -->|Model inference| E
-    B -->|WebSocket (optional)| F[Visualizations (Chart.js, D3)]
-    C --> G[Deployment (Docker, CI/CD)]
-    style A fill:#F9F,stroke:#333,stroke-width:2px
-    style B fill:#BBF,stroke:#333,stroke-width:2px
-    style C fill:#BFB,stroke:#333,stroke-width:2px
-    style D fill:#FFD,stroke:#333,stroke-width:2px
-    style E fill:#EFE,stroke:#333,stroke-width:2px
-    style F fill:#FFB,stroke:#333,stroke-width:2px
-    style G fill:#CCC,stroke:#333,stroke-width:2px
-```
 
 ---
 
