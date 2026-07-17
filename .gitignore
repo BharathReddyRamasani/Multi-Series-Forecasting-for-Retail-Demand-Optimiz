@@ -20,15 +20,15 @@ dist/
 *.key
 
 # ── Databases (large binary, keep on disk only) ──
-*.db
-*.sqlite
-*.sqlite3
+# *.db
+# *.sqlite
+# *.sqlite3
 
 # ── Model binaries (large files — keep on disk, train via train_v2.py) ──
-models/**/*.pkl
-models/**/*.h5
-models/**/*.joblib
-models/**/*.bin
+# models/**/*.pkl
+# models/**/*.h5
+# models/**/*.joblib
+# models/**/*.bin
 
 # ── Keep small model metadata for reproducibility ──
 !models/**/*_metrics.csv

@@ -13,22 +13,6 @@ const itemFade = {
 }
 
 export default function Register() {
-  const navigate = useNavigate()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [email, setEmail] = useState('')
-  const [fullName, setFullName] = useState('')
-
-  const handleRegister = async (e: any) => {
-    e.preventDefault()
-    try {
-      await apiClient.register({ username, password, email, full_name: fullName })
-      toast.success('Account created, please log in')
-      navigate('/login')
-    } catch (err: any) {
-      toast.error(err?.response?.data?.detail ?? 'Registration failed')
-    }
-  }
 
   return (
     <div className="auth-split">
