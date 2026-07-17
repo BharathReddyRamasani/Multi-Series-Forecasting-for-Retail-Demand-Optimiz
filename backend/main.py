@@ -514,22 +514,20 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 
-# Metrics endpoint (basic)
+# Metrics endpoint (Prometheus)
 @app.get("/metrics", tags=["Monitoring"])
 async def metrics():
-    """Prometheus-style metrics endpoint."""
-    # In production, integrate with prometheus_client
-    # For now, return basic info
+    """Prometheus metrics endpoint."""
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+    # Add custom metrics if needed
     forecaster = getattr(app.state, "forecaster", None)
 
-    metrics_lines = [
-        f"forecast_api_info {{version=\"1.0.0\"}} 1",
-        f"forecast_api_uptime_seconds {time.time() - getattr(app.state, 'start_time', time.time())}",
-        f"forecast_api_models_loaded {1 if forecaster and forecaster.is_loaded else 0}",
-        f"forecast_api_requests_total 0",  # Would be incremented by middleware
-    ]
+    # You could add custom gauges here if needed
+    # For example:
+    # MODEL_LOADED_GAUGE.set(1 if forecaster and forecaster.is_loaded else 0)
 
-    return Response(content="\n".join(metrics_lines), media_type="text/plain")
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # Health check endpoint (enhanced)
