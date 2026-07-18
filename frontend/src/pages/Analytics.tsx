@@ -23,6 +23,7 @@ export default function Analytics() {
     { id: 'store_item', label: 'Store/Item Analytics', icon: <Store size={16} /> },
     { id: 'feature', label: 'Feature Analysis', icon: <Target size={16} /> },
     { id: 'heatmap', label: 'Heatmap', icon: <Activity size={16} /> },
+    { id: 'error_analysis', label: 'Error Analysis', icon: <AlertTriangle size={16} /> },
   ]
 
   // Data fetchers
@@ -370,8 +371,20 @@ export default function Analytics() {
           </div>
         )}
         
-
+        {activeTab === 'error_analysis' && (
+          <div className="card">
+            <div className="card-header"><span className="card-title">Error Analysis (Actual vs Predicted)</span></div>
+            <div className="chart-wrap-tall"><canvas data-testid="chart-canvas" /></div>
+            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--tx-2)' }}>
+              Error %: {predictionData && predictionData.rows?.length > 0 ? (
+                `${predictionData.rows[predictionData.rows.length - 1].error_pct?.toFixed(2) ?? 'N/A'}%`
+              ) : 'N/A'}
+            </div>
+          </div>
+        )}
+        
+        
       </div>
-    </>
+      </>
   )
 }

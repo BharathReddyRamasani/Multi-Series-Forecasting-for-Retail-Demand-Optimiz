@@ -12,6 +12,8 @@ export default function DigitalTwin() {
   // Scenarios
   const [forceHoliday, setForceHoliday] = useState(false)
   const [forcePromotion, setForcePromotion] = useState(false)
+  const [promotionFactor, setPromotionFactor] = useState('')
+  const [holidayFactor, setHolidayFactor] = useState('')
   
   const { data: storesItems } = useQuery({
     queryKey: ['stores-items'],
@@ -30,10 +32,12 @@ export default function DigitalTwin() {
       item: parseInt(item), 
       horizon: 30, 
       model_type: 'lightgbm',
-      scenario_overrides: {
-        force_holiday: forceHoliday,
-        force_promotion: forcePromotion
-      }
+scenario_overrides: {
+                  ...(forceHoliday ? { force_holiday: true } : {}),
+                  ...(forcePromotion ? { force_promotion: true } : {}),
+                  ...(promotionFactor ? { promotion_factor: parseFloat(promotionFactor) } : {}),
+                  ...(holidayFactor ? { holiday_factor: parseFloat(holidayFactor) } : {})
+                }
     }),
     onSuccess: () => toast.success('Simulation complete!')
   })
@@ -97,20 +101,37 @@ export default function DigitalTwin() {
                 * Note: These are hypothetical scenario inputs to test extreme bounds.
               </div>
               
-              <div className="form-group mb-4" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
-                <input type="checkbox" id="holiday" checked={forceHoliday} onChange={e => setForceHoliday(e.target.checked)} />
-                <label htmlFor="holiday" className="form-label" style={{marginBottom: 0, cursor: 'pointer'}}>Simulate Holiday Event</label>
-              </div>
+<div className="form-group mb-4" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
+  <input type="checkbox" id="holiday" checked={forceHoliday} onChange={e => setForceHoliday(e.target.checked)} />
+  <label htmlFor="holiday" className="form-label" style={{marginBottom: 0, cursor: 'pointer'}}>Simulate Holiday Event</label>
+</div>
+{/* Optional holiday multiplier */}
+<div className="form-group mb-4" style={{ padding: '0 16px' }}>
+  <label className="form-label" htmlFor="holiday-factor" style={{marginBottom: 4}}>Holiday Sales Multiplier (e.g., 1.15 for +15%)</label>
+  <input type="number" id="holiday-factor" className="input" placeholder="1.0" min="0" step="0.01"
+    value={holidayFactor}
+    onChange={e => setHolidayFactor(e.target.value)}
+  />
+</div>
               
               <div className="form-group mb-4" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px' }}>
                 <input type="checkbox" id="promo" checked={forcePromotion} onChange={e => setForcePromotion(e.target.checked)} />
                 <label htmlFor="promo" className="form-label" style={{marginBottom: 0, cursor: 'pointer'}}>Active Promotion Campaign</label>
-              </div>
-              
-              <button 
-                className="btn btn-blue w-full mt-4" 
-                onClick={runSimulation}
-                disabled={isRunning}
+</div>
+               
+               {/* Optional promotion multiplier */}
+               <div className="form-group mb-4" style={{ padding: '0 16px' }}>
+                 <label className="form-label" htmlFor="promotion-factor" style={{marginBottom: 4}}>Promotion Sales Multiplier (e.g., 1.25 for +25%)</label>
+                 <input type="number" id="promotion-factor" className="input" placeholder="1.25" min="0" step="0.01"
+                   value={promotionFactor}
+                   onChange={e => setPromotionFactor(e.target.value)}
+                 />
+               </div>
+               
+               <button 
+                 className="btn btn-blue w-full mt-4" 
+                 onClick={runSimulation}
+                 disabled={isRunning}
               >
                 {isRunning ? <div className="spinner" /> : <><Beaker size={16} /> Run Simulation</>}
               </button>

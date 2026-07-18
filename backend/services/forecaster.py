@@ -378,6 +378,11 @@ class ForecastingService:
                     promo_mult = float(scenario_overrides["promotion_factor"])
                 except (ValueError, TypeError):
                     pass
+            if scenario_overrides.get("holiday_factor"):
+                try:
+                    holiday_mult = float(scenario_overrides["holiday_factor"])
+                except (ValueError, TypeError):
+                    pass
 
         X_future_df = self._prepare_features(feat_df, store, item, model_type)
 
