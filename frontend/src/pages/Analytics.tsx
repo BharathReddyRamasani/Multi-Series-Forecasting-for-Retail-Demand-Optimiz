@@ -10,7 +10,7 @@ import {
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, RadialLinearScale)
 
 export default function Analytics() {
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState('trend')
   const [selectedStore, setSelectedStore] = useState('1')
   const [selectedItem, setSelectedItem] = useState('1')
 

@@ -90,7 +90,9 @@ export default function Dashboard() {
           <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: 8, padding: 20, marginBottom: 24, display: 'flex', gap: 24, justifyContent: 'space-between' }}>
              <div>
                 <div style={{ fontSize: 13, color: 'var(--tx-3)', marginBottom: 4 }}>Forecast Demand</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--green)' }}>+8%</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: dashboardData && dashboardData.yoy_growth > 0 ? 'var(--green)' : 'var(--rose)' }}>
+                  {dashboardData ? (dashboardData.yoy_growth > 0 ? '+' : '') + dashboardData.yoy_growth.toFixed(1) + '%' : '...'}
+                </div>
              </div>
              <div style={{ width: 1, background: 'var(--border)' }}></div>
              <div>

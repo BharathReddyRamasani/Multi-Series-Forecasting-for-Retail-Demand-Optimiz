@@ -11,7 +11,7 @@ Query parameters:
 - ``sigma`` (float, optional, default 2) – outlier‑detection multiplier (exposed for UI)
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from typing import List, Dict, Any, Optional
 import os
 import sqlite3
@@ -48,6 +48,7 @@ _init_cache_db()
 
 @router.get("/prediction")
 def get_prediction(
+    request: Request,
     store: int = Query(..., description="Store ID"),
     item: int = Query(..., description="Item ID"),
     days: int = Query(30, description="Number of past days to return"),
@@ -79,7 +80,7 @@ def get_prediction(
     all_dates = [(start_date + timedelta(days=i)).isoformat() for i in range(days)]
     missing_dates = [d for d in all_dates if d not in cached_dates]
 
-    forecaster = Forecaster()
+    forecaster = request.app.state.forecaster
     new_rows: List[tuple] = []
 
     for d in missing_dates:
