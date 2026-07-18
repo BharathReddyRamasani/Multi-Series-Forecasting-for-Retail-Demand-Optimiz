@@ -50,13 +50,14 @@ export default function ForecastPage() {
 
   const forecastMutation = useMutation({
     mutationFn: async () => {
-      const req: ForecastRequest = {
-        store: parseInt(store),
-        item: parseInt(item),
-        horizon: parseInt(horizon),
-        model_type: modelType,
-        start_date: '2022-12-31'
-      }
+        const req: ForecastRequest = {
+          store: parseInt(store),
+          item: parseInt(item),
+          horizon: parseInt(horizon),
+          model_type: modelType,
+          start_date: '2022-12-31',
+          scenario_overrides: { promotion_factor: parseFloat(promotionFactor) }
+        }
       const data = await apiClient.forecast(req)
       return data
     },
@@ -166,6 +167,22 @@ export default function ForecastPage() {
         pointRadius: 2,
         pointHoverRadius: 6,
       })
+    }
+
+    // Overlay simulation forecast if available
+    if (simulationData && enableSimulation && simulationData.forecasts?.length > 0) {
+      const historyLength = data?.history?.length ?? simulationData?.history?.length ?? 0;
+      datasets.push({
+        label: 'Simulation',
+        data: [...Array(historyLength).fill(null), ...simulationData.forecasts.map((f: any) => f.point)],
+        borderColor: '#ff4d6d',
+        backgroundColor: 'transparent',
+        borderWidth: 3,
+        borderDash: [10, 5],
+        fill: false,
+        pointRadius: 2,
+        pointHoverRadius: 6,
+      });
     }
 
     return { labels, datasets }
@@ -357,15 +374,35 @@ export default function ForecastPage() {
                 </select>
               </div>
               
-              <div className="form-group mb-4">
-                <label className="form-label">Model</label>
-                <select className="select" value={modelType} onChange={e => setModelType(e.target.value)}>
-                  <option value="auto">Auto (Best Performer)</option>
-                  <option value="lightgbm">LightGBM (Fast)</option>
-                  <option value="xgboost">XGBoost (Accurate)</option>
-                  <option value="randomforest">Random Forest (Baseline)</option>
-                </select>
-              </div>
+                <div className="form-group mb-4">
+                  <label className="form-label">Model</label>
+                  <select className="select" value={modelType} onChange={e => setModelType(e.target.value)}>
+                    <option value="auto">Auto (Best Performer)</option>
+                    <option value="lightgbm">LightGBM (Fast)</option>
+                    <option value="xgboost">XGBoost (Accurate)</option>
+                    <option value="randomforest">Random Forest (Baseline)</option>
+                  </select>
+                </div>
+                <div className="form-group mb-4">
+                  <label className="form-label flex items-center gap-2">
+                    <input type="checkbox" checked={enableSimulation} onChange={e => setEnableSimulation(e.target.checked)} />
+                    Enable Simulation
+                  </label>
+                </div>
+                {enableSimulation && (
+                  <div className="form-group mb-4">
+                    <label className="form-label">Promotion factor</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="input"
+                      value={promotionFactor}
+                      onChange={e => setPromotionFactor(e.target.value)}
+                      placeholder="e.g., 1.25"
+                    />
+                  </div>
+                )}
               
 <button 
   className="btn btn-blue w-full mt-2" 

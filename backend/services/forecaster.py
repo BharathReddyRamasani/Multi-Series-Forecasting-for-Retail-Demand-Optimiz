@@ -12,11 +12,11 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
 from statsmodels.tsa.arima.model import ARIMA
-from services.feature_engine import (
+from backend.services.feature_engine import (
     build_history_dataframe,
     engineer_features,
 )
-from services.cache import TTLCache
+from backend.services.cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -357,11 +357,19 @@ class ForecastingService:
             if scenario_overrides.get("force_holiday"):
                 feat_df["is_holiday"] = 1
                 feat_df["days_to_holiday"] = 0
-            # Price multiplier removed as it's mathematically incorrect without a trained price feature
+            # Apply promotion multiplier – default 0 (no change)
+            multiplier = 1.0
             if scenario_overrides.get("force_promotion"):
+                multiplier = 1.25
+            if scenario_overrides.get("promotion_factor"):
+                try:
+                    multiplier = float(scenario_overrides["promotion_factor"])
+                except (ValueError, TypeError):
+                    pass
+            if multiplier != 1.0:
                 for col in feat_df.columns:
                     if "sales" in col or "mean" in col or "lag" in col:
-                        feat_df[col] = feat_df[col] * 1.25 # 25% boost
+                        feat_df[col] = feat_df[col] * multiplier
         X_future_df = self._prepare_features(feat_df, store, item, model_type)
 
         supported = {"lightgbm", "xgboost", "randomforest", "arima", "sarima", "arma"}

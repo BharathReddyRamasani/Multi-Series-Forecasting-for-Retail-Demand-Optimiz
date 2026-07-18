@@ -141,6 +141,11 @@ async def generate_forecast(body: ForecastRequest, request: Request):
 @router.post("/simulate", response_model=ForecastResponse)
 async def simulate_forecast(body: ForecastRequest, request: Request):
     """Generate a What-If forecast based on scenario overrides."""
+    # Ensure at least one promotion scenario is applied if none provided
+    if not body.scenario_overrides:
+        body.scenario_overrides = {"force_promotion": True}
+    else:
+        body.scenario_overrides.setdefault("force_promotion", True)
     return await generate_forecast(body, request)
 
 

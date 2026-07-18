@@ -20,6 +20,8 @@ from datetime import datetime, timedelta
 # Import the forecaster service
 from services.forecaster import ForecastingService
 from database import get_db_connection
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["History"])
 
@@ -62,8 +64,24 @@ def get_prediction(
     requests.
     """
     # Normalise the window – end date is today (inclusive), start date is ``days`` days ago.
+    # Determine the date window: end_date is today, start_date is ``days`` days ago.
     end_date = datetime.utcnow().date()
     start_date = end_date - timedelta(days=days - 1)  # inclusive range of ``days`` entries
+    # Determine the latest actual sales date for this store/item.
+    try:
+        cur = get_db_connection().cursor()
+        cur.execute("SELECT MAX(date) FROM sales WHERE store=? AND item=?", (store, item))
+        max_date_row = cur.fetchone()
+        if max_date_row and max_date_row[0]:
+            max_date = datetime.strptime(max_date_row[0], "%Y-%m-%d").date()
+            # Clamp the window to available data: end_date cannot exceed max_date.
+            if end_date > max_date:
+                end_date = max_date
+            # Ensure start_date is not after max_date either.
+            if start_date > max_date:
+                start_date = max_date
+    except Exception as e:
+        logger.warning("Failed to adjust date window based on DB max date: %s", e)
 
     conn = sqlite3.connect(CACHE_DB_PATH)
     cur = conn.cursor()

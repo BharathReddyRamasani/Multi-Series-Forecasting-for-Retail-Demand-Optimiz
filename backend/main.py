@@ -28,10 +28,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import routers and services
 try:
-    from routers import forecast, analytics, health, business, dashboard, data, history, model_perf, reports, explain, auth
-    from services.forecaster import ForecastingService
-    from database import init_db
-    from auth import (
+    from backend.routers import forecast, analytics, health, business, dashboard, data, history, model_perf, reports, explain, auth
+    from backend.services.forecaster import ForecastingService
+    from backend.database import init_db
+    from backend.auth import (
         authenticate_user,
         create_access_token,
         create_refresh_token,

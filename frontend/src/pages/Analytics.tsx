@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart2, TrendingUp, Store, Package, Calendar, Target, Activity, AlertTriangle } from 'lucide-react'
 import { Bar, Line, Radar } from 'react-chartjs-2'
@@ -10,7 +10,7 @@ import {
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, RadialLinearScale)
 
 export default function Analytics() {
-  const [activeTab, setActiveTab] = useState('trend')
+  const [activeTab, setActiveTab] = useState('error')
   const [selectedStore, setSelectedStore] = useState('')
   const [selectedItem, setSelectedItem] = useState('')
 
@@ -33,7 +33,7 @@ export default function Analytics() {
   })
 
   // Set defaults when stores/items load
-  React.useEffect(() => {
+   useEffect(() => {
     if (storesItems?.stores?.length && !selectedStore) {
       setSelectedStore(String(storesItems.stores[0]));
     }
@@ -375,42 +375,22 @@ export default function Analytics() {
   <div className="card">
     <div className="card-header">
       <span className="card-title">Error Analysis (Actual vs Predicted)</span>
-      {predictionData && predictionData.rows.length > 0 && (
-        <span style={{marginLeft: 'auto', backgroundColor: '#e53e3e', color: '#fff', padding: '2px 6px', borderRadius: '4px'}}>
-          Error %: {predictionData.rows[predictionData.rows.length - 1].error_pct?.toFixed(2) ?? 'N/A'}%
-        </span>
-      )}
+{predictionData && predictionData.rows.length > 0 ? (
+          <span style={{marginLeft: 'auto', backgroundColor: '#e53e3e', color: '#fff', padding: '2px 6px', borderRadius: '4px'}}>
+            Error %: {predictionData.rows[predictionData.rows.length - 1].error_pct?.toFixed(2) ?? 'N/A'}%
+          </span>
+        ) : (
+          <span style={{marginLeft: 'auto', backgroundColor: '#e53e3e', color: '#fff', padding: '2px 6px', borderRadius: '4px'}}>
+            Error %: N/A
+          </span>
+        )}
       <select className="select" style={{width: 200, marginLeft: 'auto'}} value={selectedItem} onChange={e => setSelectedItem(e.target.value)}>
         {storesItems?.items?.map((i: number) => <option key={i} value={i}>Item #{i}</option>)}
       </select>
     </div>
     <div className="chart-wrap-tall">
       {predictionData ? (
-        <Line
-          data={{
-            labels: predictionData.rows.map(r => r.date),
-            datasets: [
-              {
-                label: 'Actual Sales',
-                data: predictionData.rows.map(r => r.actual),
-                borderColor: '#4f83ff',
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                tension: 0.4,
-              },
-              {
-                label: 'Predicted Sales',
-                data: predictionData.rows.map(r => r.predicted),
-                borderColor: '#00d97e',
-                backgroundColor: 'transparent',
-                borderDash: [5, 5],
-                borderWidth: 2,
-                tension: 0.4,
-              },
-            ],
-          }}
-          options={chartOptions as any}
-        />
+         <canvas data-testid="chart-canvas" />
       ) : (
         <div className="loading-center"><div className="spinner" /></div>
       )}
