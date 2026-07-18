@@ -314,8 +314,8 @@ app = FastAPI(
 
 # Security middleware
 if os.getenv("ENV", "development") == "production":
-    # Trust specific hosts in production (add Render's domain by default)
-    allowed_hosts = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,*.onrender.com").split(",")
+    # Trust specific hosts in production (add Render and Railway domains by default)
+    allowed_hosts = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,*.onrender.com,*.up.railway.app").split(",")
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 # CORS middleware - more secure in production
