@@ -341,7 +341,7 @@ class ForecastingService:
             logger.warning("RandomForest not available, falling back to LightGBM")
             model_type = "lightgbm"
 
-                if not scenario_overrides:
+        if not scenario_overrides:
             cached = self._forecast_cache.get(store, item, horizon, model_type, start_date)
             if cached is not None:
                 return cached
