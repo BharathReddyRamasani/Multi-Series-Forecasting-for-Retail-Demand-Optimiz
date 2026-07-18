@@ -341,7 +341,7 @@ class ForecastingService:
             logger.warning("RandomForest not available, falling back to LightGBM")
             model_type = "lightgbm"
 
-        if not scenario_overrides:
+                if not scenario_overrides:
             cached = self._forecast_cache.get(store, item, horizon, model_type, start_date)
             if cached is not None:
                 return cached
@@ -353,23 +353,32 @@ class ForecastingService:
         # Build features
         feat_df = engineer_features(history, forecast_dates, store, item)
         
+        holiday_mult = 1.0
+        promo_mult = 1.0
+
         if scenario_overrides:
             if scenario_overrides.get("force_holiday"):
-                feat_df["is_holiday"] = 1
-                feat_df["days_to_holiday"] = 0
-            # Apply promotion multiplier – default 0 (no change)
-            multiplier = 1.0
+                # Calculate historical impact
+                try:
+                    from backend.services.feature_engine import HOLIDAY_DATES
+                    hist_is_hol = history["date"].dt.normalize().isin(HOLIDAY_DATES)
+                    hol_sales = history.loc[hist_is_hol, "sales"].mean()
+                    non_hol_sales = history.loc[~hist_is_hol, "sales"].mean()
+                    if pd.notna(hol_sales) and pd.notna(non_hol_sales) and non_hol_sales > 0:
+                        holiday_mult = max(0.1, min(float(hol_sales / non_hol_sales), 5.0)) 
+                    else:
+                        holiday_mult = 1.15
+                except Exception:
+                    holiday_mult = 1.15
+
             if scenario_overrides.get("force_promotion"):
-                multiplier = 1.25
+                promo_mult = 1.25
             if scenario_overrides.get("promotion_factor"):
                 try:
-                    multiplier = float(scenario_overrides["promotion_factor"])
+                    promo_mult = float(scenario_overrides["promotion_factor"])
                 except (ValueError, TypeError):
                     pass
-            if multiplier != 1.0:
-                for col in feat_df.columns:
-                    if "sales" in col or "mean" in col or "lag" in col:
-                        feat_df[col] = feat_df[col] * multiplier
+
         X_future_df = self._prepare_features(feat_df, store, item, model_type)
 
         supported = {"lightgbm", "xgboost", "randomforest", "arima", "sarima", "arma"}
@@ -388,11 +397,18 @@ class ForecastingService:
         else:
             preds_point, preds_low, preds_high = self._forecast_lightgbm(X_future_df, horizon)
 
+        total_mult = holiday_mult * promo_mult
+        if total_mult != 1.0:
+            preds_point = preds_point * total_mult
+            preds_low = preds_low * total_mult
+            preds_high = preds_high * total_mult
+
         # Ensure shapes match horizon
         if len(preds_point) != horizon:
             preds_point = np.pad(preds_point, (0, max(0, horizon - len(preds_point))), 'edge')[:horizon]
             preds_low   = np.pad(preds_low, (0, max(0, horizon - len(preds_low))), 'edge')[:horizon]
             preds_high  = np.pad(preds_high, (0, max(0, horizon - len(preds_high))), 'edge')[:horizon]
+
 
         results = []
         for i, d in enumerate(forecast_dates):
