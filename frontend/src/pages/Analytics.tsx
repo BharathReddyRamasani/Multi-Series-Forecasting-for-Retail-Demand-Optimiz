@@ -11,8 +11,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 export default function Analytics() {
   const [activeTab, setActiveTab] = useState('trend')
-  const [selectedStore, setSelectedStore] = useState('1')
-  const [selectedItem, setSelectedItem] = useState('1')
+  const [selectedStore, setSelectedStore] = useState('')
+  const [selectedItem, setSelectedItem] = useState('')
 
   const tabs = [
     { id: 'trend', label: 'Trend Analysis', icon: <TrendingUp size={16} /> },
@@ -32,6 +32,16 @@ export default function Analytics() {
     queryFn: () => apiClient.storesItems()
   })
 
+  // Set defaults when stores/items load
+  React.useEffect(() => {
+    if (storesItems?.stores?.length && !selectedStore) {
+      setSelectedStore(String(storesItems.stores[0]));
+    }
+    if (storesItems?.items?.length && !selectedItem) {
+      setSelectedItem(String(storesItems.items[0]));
+    }
+  }, [storesItems]);
+
   const { data: featureImportance } = useQuery({
     queryKey: ['global-feature-importance'],
     queryFn: () => apiClient.featureImportance(10)
@@ -39,7 +49,8 @@ export default function Analytics() {
 
   const { data: storeSales } = useQuery({
     queryKey: ['store-sales', selectedStore],
-    queryFn: () => apiClient.storeSales(parseInt(selectedStore))
+    queryFn: () => apiClient.storeSales(parseInt(selectedStore)),
+    enabled: !!selectedStore
   })
 
   const { data: itemSales } = useQuery({

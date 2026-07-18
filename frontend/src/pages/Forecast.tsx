@@ -32,6 +32,11 @@ export default function ForecastPage() {
   const [item, setItem] = useState('1')
   const [horizon, setHorizon] = useState(saved.horizon)
   const [modelType, setModelType] = useState(saved.model)
+  // Simulation controls
+  const [enableSimulation, setEnableSimulation] = useState(false)
+  const [promotionFactor, setPromotionFactor] = useState('1.25')
+  // State for simulation result
+  const [simulationData, setSimulationData] = useState<any>(null)
   
   // Chart Toggles
   const [showHistory, setShowHistory] = useState(true)
@@ -57,6 +62,23 @@ export default function ForecastPage() {
     },
     onSuccess: () => toast.success('Forecast generated successfully!'),
     onError: () => toast.error('Failed to generate forecast.')
+   })
+   
+   const simulateMutation = useMutation({
+     mutationFn: async () => {
+       const req: ForecastRequest = {
+         store: parseInt(store),
+         item: parseInt(item),
+         horizon: parseInt(horizon),
+         model_type: modelType,
+         start_date: '2022-12-31'
+       }
+       const data = await apiClient.simulate(req)
+       setSimulationData(data)
+       return data
+     },
+     onSuccess: () => toast.success('Simulation forecast generated!'),
+     onError: () => toast.error('Failed to generate simulation forecast.')
    })
 
   // Fetch model performance for telemetry (RMSE, MAPE, etc.)
@@ -345,13 +367,20 @@ export default function ForecastPage() {
                 </select>
               </div>
               
-              <button 
-                className="btn btn-blue w-full mt-2" 
-                onClick={() => forecastMutation.mutate()}
-                disabled={isLoading}
-              >
-                {isLoading ? <div className="spinner" /> : 'Generate Forecast'}
-              </button>
+<button 
+  className="btn btn-blue w-full mt-2" 
+  onClick={() => forecastMutation.mutate()}
+  disabled={isLoading}
+>
+  {isLoading ? <div className="spinner" /> : 'Generate Forecast'}
+</button>
+<button 
+  className="btn btn-outline w-full mt-2" 
+  onClick={() => simulateMutation.mutate()}
+  disabled={isLoading}
+>
+  Generate Simulation
+</button>
             </div>
 
             {/* Model Info Card */}
