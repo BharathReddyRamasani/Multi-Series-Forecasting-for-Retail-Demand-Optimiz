@@ -8,16 +8,7 @@ import {
 } from 'chart.js'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, RadialLinearScale)
-import React, { useState, useMemo, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { BarChart2, TrendingUp, Store, Package, Calendar, Target, Activity, AlertTriangle } from 'lucide-react'
-import { Bar, Line, Radar } from 'react-chartjs-2'
-import { apiClient } from '../api/client'
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, RadialLinearScale
-} from 'chart.js'
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, RadialLinearScale)
 
 export default function Analytics() {
   const [activeTab, setActiveTab] = useState('trend')
