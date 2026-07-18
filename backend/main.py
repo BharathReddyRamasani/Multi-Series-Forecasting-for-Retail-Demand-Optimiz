@@ -365,6 +365,37 @@ if routers_loaded:
                        dependencies=[_protected])
     app.include_router(explain.router, prefix="", tags=["Explain"],
                        dependencies=[_protected])
+
+    # Mount React Frontend SPA
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+    
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    if os.path.exists(static_dir):
+        # Mount the assets directory specifically
+        assets_dir = os.path.join(static_dir, "assets")
+        if os.path.exists(assets_dir):
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+            
+        # Serve other static files like favicon.ico, manifest.json at the root
+        
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_spa(full_path: str):
+            # API requests that reach here are actual 404s
+            if full_path.startswith("api/"):
+                raise HTTPException(status_code=404, detail="API endpoint not found")
+                
+            # If requesting a specific file (like favicon.ico) in the root static dir
+            potential_file = os.path.join(static_dir, full_path)
+            if os.path.isfile(potential_file):
+                return FileResponse(potential_file)
+                
+            # Otherwise, return index.html for React Router to handle
+            index_file = os.path.join(static_dir, "index.html")
+            if os.path.exists(index_file):
+                return FileResponse(index_file)
+                
+            raise HTTPException(status_code=404, detail="Frontend not found")
 else:
     # Error handling if routers failed to load
     @app.exception_handler(Exception)
