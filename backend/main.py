@@ -23,6 +23,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
+# Ensure local modules can be imported when running via gunicorn backend.main:app
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 # Import routers and services
 try:
     from routers import forecast, analytics, health, business, dashboard, data, history, model_perf, reports, explain, auth
