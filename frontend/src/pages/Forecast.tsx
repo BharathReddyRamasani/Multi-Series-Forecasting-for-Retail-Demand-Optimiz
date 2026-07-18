@@ -32,11 +32,35 @@ export default function ForecastPage() {
   const [item, setItem] = useState('1')
   const [horizon, setHorizon] = useState(saved.horizon)
   const [modelType, setModelType] = useState(saved.model)
-  // Simulation controls
-  const [enableSimulation, setEnableSimulation] = useState(false)
-  const [promotionFactor, setPromotionFactor] = useState('1.25')
-  // State for simulation result
-  const [simulationData, setSimulationData] = useState<any>(null)
+  const [scenarioData, setScenarioData] = useState<{normal: number, promo: number, holiday: number, both: number} | null>(null)
+  const [isSimulating, setIsSimulating] = useState(false)
+
+  const runScenarioAnalysis = async () => {
+    setIsSimulating(true)
+    try {
+      const baseReq = { store: parseInt(store), item: parseInt(item), horizon: parseInt(horizon), model_type: modelType, start_date: '2022-12-31' }
+      const [normal, promo, holiday, both] = await Promise.all([
+        apiClient.forecast({ ...baseReq, scenario_overrides: {} }),
+        apiClient.forecast({ ...baseReq, scenario_overrides: { force_promotion: true } }),
+        apiClient.forecast({ ...baseReq, scenario_overrides: { force_holiday: true } }),
+        apiClient.forecast({ ...baseReq, scenario_overrides: { force_holiday: true, force_promotion: true } })
+      ])
+      
+      const toDaily = (expected: number) => expected / parseInt(horizon)
+
+      setScenarioData({
+        normal: toDaily(normal.expected_sales),
+        promo: toDaily(promo.expected_sales),
+        holiday: toDaily(holiday.expected_sales),
+        both: toDaily(both.expected_sales)
+      })
+      toast.success('Scenario analysis complete!')
+    } catch (e) {
+      toast.error('Failed to run scenarios.')
+    } finally {
+      setIsSimulating(false)
+    }
+  }
   
   // Chart Toggles
   const [showHistory, setShowHistory] = useState(true)
@@ -55,8 +79,7 @@ export default function ForecastPage() {
           item: parseInt(item),
           horizon: parseInt(horizon),
           model_type: modelType,
-          start_date: '2022-12-31',
-          scenario_overrides: { promotion_factor: parseFloat(promotionFactor) }
+          start_date: '2022-12-31'
         }
       const data = await apiClient.forecast(req)
       return data
@@ -65,22 +88,7 @@ export default function ForecastPage() {
     onError: () => toast.error('Failed to generate forecast.')
    })
    
-   const simulateMutation = useMutation({
-     mutationFn: async () => {
-       const req: ForecastRequest = {
-         store: parseInt(store),
-         item: parseInt(item),
-         horizon: parseInt(horizon),
-         model_type: modelType,
-         start_date: '2022-12-31'
-       }
-       const data = await apiClient.simulate(req)
-       setSimulationData(data)
-       return data
-     },
-     onSuccess: () => toast.success('Simulation forecast generated!'),
-     onError: () => toast.error('Failed to generate simulation forecast.')
-   })
+
 
   // Fetch model performance for telemetry (RMSE, MAPE, etc.)
   const { data: modelPerf } = useQuery({
@@ -169,21 +177,7 @@ export default function ForecastPage() {
       })
     }
 
-    // Overlay simulation forecast if available
-    if (simulationData && enableSimulation && simulationData.forecasts?.length > 0) {
-      const historyLength = data?.history?.length ?? simulationData?.history?.length ?? 0;
-      datasets.push({
-        label: 'Simulation',
-        data: [...Array(historyLength).fill(null), ...simulationData.forecasts.map((f: any) => f.point)],
-        borderColor: '#ff4d6d',
-        backgroundColor: 'transparent',
-        borderWidth: 3,
-        borderDash: [10, 5],
-        fill: false,
-        pointRadius: 2,
-        pointHoverRadius: 6,
-      });
-    }
+
 
     return { labels, datasets }
   }
@@ -383,27 +377,6 @@ export default function ForecastPage() {
                     <option value="randomforest">Random Forest (Baseline)</option>
                   </select>
                 </div>
-                <div className="form-group mb-4">
-                  <label className="form-label flex items-center gap-2">
-                    <input type="checkbox" checked={enableSimulation} onChange={e => setEnableSimulation(e.target.checked)} />
-                    Enable Simulation
-                  </label>
-                </div>
-                {enableSimulation && (
-                  <div className="form-group mb-4">
-                    <label className="form-label">Promotion factor</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      className="input"
-                      value={promotionFactor}
-                      onChange={e => setPromotionFactor(e.target.value)}
-                      placeholder="e.g., 1.25"
-                    />
-                  </div>
-                )}
-              
 <button 
   className="btn btn-blue w-full mt-2" 
   onClick={() => forecastMutation.mutate()}
@@ -411,13 +384,48 @@ export default function ForecastPage() {
 >
   {isLoading ? <div className="spinner" /> : 'Generate Forecast'}
 </button>
-<button 
-  className="btn btn-outline w-full mt-2" 
-  onClick={() => simulateMutation.mutate()}
-  disabled={isLoading}
->
-  Generate Simulation
-</button>
+            </div>
+
+            <div className="card">
+              <div className="card-header" style={{ marginBottom: '16px' }}>
+                <span className="card-title">Scenario Parameters</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--tx-2)', marginBottom: 16 }}>
+                Test extreme bounds by simulating different conditions.
+              </div>
+              <button 
+                className="btn btn-outline w-full" 
+                onClick={runScenarioAnalysis}
+                disabled={isSimulating}
+              >
+                {isSimulating ? <div className="spinner" /> : 'Run Scenario Analysis'}
+              </button>
+
+              {scenarioData && (
+                <div style={{ marginTop: 16 }}>
+                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx-1)', marginBottom: 8 }}>Expected Daily Sales</div>
+                   <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+                     <tbody>
+                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                         <td style={{ padding: '8px 0', color: 'var(--tx-3)' }}>Normal Day</td>
+                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{scenarioData.normal.toFixed(1)}</td>
+                       </tr>
+                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                         <td style={{ padding: '8px 0', color: 'var(--tx-3)' }}>Promotion Only</td>
+                         <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--blue)' }}>{scenarioData.promo.toFixed(1)}</td>
+                       </tr>
+                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                         <td style={{ padding: '8px 0', color: 'var(--tx-3)' }}>Holiday Only</td>
+                         <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--teal)' }}>{scenarioData.holiday.toFixed(1)}</td>
+                       </tr>
+                       <tr>
+                         <td style={{ padding: '8px 0', color: 'var(--tx-3)' }}>Holiday + Promo</td>
+                         <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--green)' }}>{scenarioData.both.toFixed(1)}</td>
+                       </tr>
+                     </tbody>
+                   </table>
+                </div>
+              )}
             </div>
 
             {/* Model Info Card */}

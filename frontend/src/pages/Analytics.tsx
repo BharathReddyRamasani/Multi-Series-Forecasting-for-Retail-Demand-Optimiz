@@ -8,9 +8,19 @@ import {
 } from 'chart.js'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, RadialLinearScale)
+import React, { useState, useMemo, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { BarChart2, TrendingUp, Store, Package, Calendar, Target, Activity, AlertTriangle } from 'lucide-react'
+import { Bar, Line, Radar } from 'react-chartjs-2'
+import { apiClient } from '../api/client'
+import {
+  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, RadialLinearScale
+} from 'chart.js'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler, RadialLinearScale)
 
 export default function Analytics() {
-  const [activeTab, setActiveTab] = useState('error')
+  const [activeTab, setActiveTab] = useState('trend')
   const [selectedStore, setSelectedStore] = useState('')
   const [selectedItem, setSelectedItem] = useState('')
 
@@ -22,8 +32,6 @@ export default function Analytics() {
     { id: 'store_item', label: 'Store/Item Analytics', icon: <Store size={16} /> },
     { id: 'feature', label: 'Feature Analysis', icon: <Target size={16} /> },
     { id: 'heatmap', label: 'Heatmap', icon: <Activity size={16} /> },
-    { id: 'error', label: 'Error Analysis', icon: <AlertTriangle size={16} /> },
-    { id: 'outliers', label: 'Outliers', icon: <AlertTriangle size={16} /> },
   ]
 
   // Data fetchers
@@ -371,83 +379,6 @@ export default function Analytics() {
           </div>
         )}
         
-        {activeTab === 'error' && (
-  <div className="card">
-    <div className="card-header">
-      <span className="card-title">Error Analysis (Actual vs Predicted)</span>
-{predictionData && predictionData.rows.length > 0 ? (
-          <span style={{marginLeft: 'auto', backgroundColor: '#e53e3e', color: '#fff', padding: '2px 6px', borderRadius: '4px'}}>
-            Error %: {predictionData.rows[predictionData.rows.length - 1].error_pct?.toFixed(2) ?? 'N/A'}%
-          </span>
-        ) : (
-          <span style={{marginLeft: 'auto', backgroundColor: '#e53e3e', color: '#fff', padding: '2px 6px', borderRadius: '4px'}}>
-            Error %: N/A
-          </span>
-        )}
-      <select className="select" style={{width: 200, marginLeft: 'auto'}} value={selectedItem} onChange={e => setSelectedItem(e.target.value)}>
-        {storesItems?.items?.map((i: number) => <option key={i} value={i}>Item #{i}</option>)}
-      </select>
-    </div>
-    <div className="chart-wrap-tall">
-      {predictionData ? (
-         <canvas data-testid="chart-canvas" />
-      ) : (
-        <div className="loading-center"><div className="spinner" /></div>
-      )}
-    </div>
-  </div>
-)}
-        
-{activeTab === 'outliers' && (
-  <div className="card">
-    <div className="card-header"><span className="card-title">Outliers Detection</span></div>
-    <div className="chart-wrap-tall">
-      {predictionData ? (
-        <Line
-          data={{
-            labels: predictionData.rows.map(r => r.date),
-            datasets: [{
-              label: 'Actual Sales',
-              data: predictionData.rows.map(r => r.actual),
-              borderColor: 'rgba(255,255,255,0.05)',
-              backgroundColor: '#4f83ff',
-              pointBackgroundColor: (context: any) => {
-                const i = context.dataIndex;
-                const err = predictionData.errors[i] ?? 0;
-                return Math.abs(err) > sigma * (predictionData.std ?? 0) ? '#ff4d6d' : '#4f83ff';
-              },
-              pointRadius: (context: any) => {
-                const i = context.dataIndex;
-                const err = predictionData.errors[i] ?? 0;
-                return Math.abs(err) > sigma * (predictionData.std ?? 0) ? 6 : 4;
-              },
-              showLine: false,
-            }]
-          }}
-          options={{
-            ...chartOptions,
-            plugins: {
-              ...chartOptions.plugins,
-              tooltip: {
-                callbacks: {
-                  label: (context: any) => {
-                    const i = context.dataIndex;
-                    const row = predictionData.rows[i];
-                    const err = row.error ?? (row.predicted - row.actual);
-                    const isOutlier = Math.abs(err) > sigma * (predictionData.std ?? 0);
-                    return isOutlier ? `Outlier (Error ${err.toFixed(2)})` : `Normal (${row.actual})`;
-                  }
-                }
-              }
-            }
-          } as any}>
-        </Line>
-      ) : (
-        <div className="loading-center"><div className="spinner" /></div>
-      )}
-    </div>
-  </div>
-)}
 
       </div>
     </>
